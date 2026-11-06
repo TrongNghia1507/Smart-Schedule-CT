@@ -1,0 +1,52 @@
+{
+  "conflict_id": "demo-hard-01",
+  "schedule_version": 1,
+  "now_minute": 480,
+  "target_task_id": "lab",
+  "tasks": [
+    {
+      "id": "lab",
+      "name": "Hoàn thành LAB",
+      "kind": "hard",
+      "importance": 3,
+      "remaining_min": 120,
+      "earliest_start": 480,
+      "deadline": 660,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "buffer_min": 0,
+      "allow_compress": true,
+      "min_remaining_min": 45,
+      "allow_exclude": true,
+      "max_postpone_minutes": 0
+    }
+  ],
+  "fixed_tasks": [
+    {
+      "id": "run",
+      "name": "Chạy bộ",
+      "interval": {
+        "start": 540,
+        "end": 600
+      },
+      "importance": 1,
+      "can_shorten": true,
+      "min_duration": 15
+    }
+  ],
+  "active_windows": [
+    {
+      "start": 480,
+      "end": 600
+    },
+    {
+      "start": 1920,
+      "end": 2040
+    }
+  ],
+  "policy": {
+    "max_earlier_minutes": 0,
+    "max_later_minutes": 15,
+    "compression_step_minutes": 15
+  }
+}
