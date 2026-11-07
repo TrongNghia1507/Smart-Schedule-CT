@@ -1,0 +1,56 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;font-size:14px;background:var(--surface);color:var(--text)}
+.wrap{overflow:auto;width:100%;padding-bottom:8px}table{width:100%;min-width:920px;border-collapse:collapse;text-align:left}th{background:var(--soft);font-size:12px;font-weight:600;color:var(--muted);padding:14px 10px;white-space:nowrap}td{padding:16px 10px;border-bottom:1px solid var(--border);line-height:1.5;vertical-align:middle}td.name{font-weight:600;min-width:200px}td.editable{cursor:text}td.editable:hover{background:var(--soft)}td:focus{outline:2px solid var(--blue);outline-offset:-2px}.index{color:var(--muted);width:38px}.badge{border-radius:18px;padding:4px 9px;white-space:nowrap;font-size:12px;display:inline-block}.blue{background:#dfeeff;color:#2466a7}.green{background:#def1df;color:#307238}.asap{background:#ffe1e1;color:#b8322b}.hard{background:#ffead2;color:#a95715}.soft{background:#dfebff;color:#3266ad}.neutral{background:var(--soft);color:var(--muted)}.warning{background:#fff0c9;color:#956800}.error{background:#fbe0e0;color:#ad2929}button{border:0;background:transparent;color:var(--blue);cursor:pointer;padding:6px;font-size:13px}button.delete{color:#d85d55}button:hover{text-decoration:underline}.actions{white-space:nowrap}input,select{border:1px solid var(--blue);border-radius:5px;padding:8px;background:var(--surface);color:var(--text);width:100%;min-width:65px;font:inherit}.issue td{padding:8px 14px;font-size:12px;color:var(--muted);background:var(--soft)}.notes{font-size:12px;white-space:nowrap}.importance{color:var(--blue);letter-spacing:3px;white-space:nowrap}.hint{font-size:12px;color:var(--muted);padding:12px 2px}.empty{padding:28px;color:var(--muted);text-align:center}.toggle{display:inline-block;padding:2px 9px;border-radius:20px;background:var(--soft);color:var(--muted)}.toggle.on{background:var(--blue);color:white}
+</style></head><body><div id="root"></div><script>
+const send=(type,data={})=>parent.postMessage({isStreamlitMessage:true,type,...data},'*');
+const emit=(action,data={})=>send('streamlit:setComponentValue',{value:{action,...data,nonce:Date.now()+Math.random()},dataType:'json'});
+const text=(tag,value,cls)=>{const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e};
+const height=()=>send('streamlit:setFrameHeight',{height:Math.min(850,document.documentElement.scrollHeight+4)});
+let args;
+const en={
+ 'Tên':'Name','Lặp lại':'Repeat','Bắt đầu':'Start','Kết thúc':'End','Thời lượng':'Duration',
+ 'Chia nhỏ & co dãn':'Split & shorten','Tối thiểu':'Minimum','Ngày diễn ra':'Date',
+ 'Loại':'Type','Quan trọng':'Importance','Hạn chót':'Deadline','Sớm nhất':'Earliest start',
+ 'Sửa':'Edit','Xóa':'Delete','Có':'Yes','Không':'No',
+ 'Chưa có công việc. Bấm “+ Thêm bằng form” để bắt đầu.':'No tasks yet. Click “+ Add with form” to get started.',
+ 'Nhấp đúp hoặc Enter để sửa':'Double-click or press Enter to edit',
+ 'Nhấp đúp vào ô hoặc nhấn Enter để sửa trực tiếp. Thay đổi hợp lệ được tự lưu.':'Double-click a cell or press Enter to edit. Valid changes are saved automatically.'
+};
+const t=value=>args?.lang==='en'?(en[value]||value):value;
+function editCell(td,row,key){
+ if(td.querySelector('input,select'))return;
+ const choices={importance:['1','2','3'],kind:['asap','hard','soft'],focus:['high','low'],is_flexible:['Không','Có']};
+ const input=document.createElement(choices[key]?'select':'input');input.setAttribute('aria-label',key);
+ if(choices[key]){for(const v of choices[key]){const o=text('option',t(v));o.value=v;input.append(o)}}
+ input.value=row.raw[key]||'';td.replaceChildren(input);input.focus();if(input.select)input.select();
+ let done=false;const save=()=>{if(done)return;done=true;if(input.value!==String(row.raw[key]||''))emit('submit',{raw:{...row.raw,[key]:input.value}});else render(args)};
+ input.onblur=save;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();save()}if(e.key==='Escape'){done=true;render(args)}};
+}
+function render(a){args=a;document.documentElement.lang=a.lang||'vi';for(const [k,v] of Object.entries(a.palette))document.documentElement.style.setProperty('--'+k,v);
+ const root=document.getElementById('root');root.replaceChildren();const wrap=text('div','','wrap');root.append(wrap);
+ if(!a.rows.length){wrap.append(text('div',t('Chưa có công việc. Bấm “+ Thêm bằng form” để bắt đầu.'),'empty'));height();return}
+ const table=document.createElement('table');wrap.append(table);
+ const cols=a.fixed?[['name','Tên'],['repeat','Lặp lại'],['start','Bắt đầu'],['end','Kết thúc'],['_duration','Thời lượng'],['is_flexible','Chia nhỏ & co dãn'],['min_duration_min','Tối thiểu'],['one_off_date','Ngày diễn ra']]:[['name','Tên'],['kind','Loại'],['importance','Quan trọng'],['deadline','Hạn chót'],['remaining_min','Thời lượng'],['focus','Focus'],['buffer_min','Buffer'],['earliest_start','Sớm nhất'],['chunk_min','Chunk min'],['chunk_max','Chunk max']];
+ const head=document.createElement('tr');head.append(text('th','#'));for(const [,label]of cols)head.append(text('th',t(label)));head.append(text('th',''));table.append(head);
+ for(const [idx,row] of a.rows.entries()){
+  const tr=document.createElement('tr');tr.append(text('td',idx+1,'index'));table.append(tr);
+  for(const [key]of cols){let value=row.raw[key]||'—';const td=text('td','',key==='name'?'name':'');
+   if(key==='_duration'){td.textContent=row.meta.duration}
+   else if(key==='kind'){td.append(text('span',({asap:'ϟ ',hard:'▪ ',soft:'○ '}[value]||'')+value,'badge '+value))}
+   else if(key==='repeat' && value!=='—'){td.append(text('span',value,'badge blue'))}
+   else if(key==='importance'){td.append(text('span','●'.repeat(Number(value))+'○'.repeat(3-Number(value)),'importance'));td.append(text('span',' '+value))}
+   else if(key==='is_flexible'){td.append(text('span',t(value),'toggle '+(value==='Có'?'on':'')))}
+   else{td.textContent=value;if(key==='min_duration_min'){td.append(document.createElement('br'));td.append(text('span',row.meta.rigidity,'badge '+(row.raw.is_flexible==='Có'?'green':'neutral')))}}
+   if(!key.startsWith('_')){td.classList.add('editable');td.tabIndex=0;td.title=t('Nhấp đúp hoặc Enter để sửa');td.ondblclick=()=>editCell(td,row,key);td.onkeydown=e=>{if(e.key==='Enter'&&!td.querySelector('input,select'))editCell(td,row,key)}}
+   tr.append(td);
+  }
+  const actions=text('td','','actions');for(const [act,label]of [['edit','Sửa'],['remove','Xóa']]){const b=text('button',t(label),act==='remove'?'delete':'');b.onclick=()=>emit(act,{id:row.raw.id});actions.append(b)}tr.append(actions);
+  const important=row.issues.filter(i=>i.severity!=='Info');
+  if(important.length){const ir=text('tr','','issue'),cell=text('td',important.map(i=>(i.severity==='Error'?'● ':'△ ')+i.message).join(' · '));cell.colSpan=cols.length+2;ir.append(cell);table.append(ir)}
+ }
+ root.append(text('div',t('Nhấp đúp vào ô hoặc nhấn Enter để sửa trực tiếp. Thay đổi hợp lệ được tự lưu.'),'hint'));height();
+}
+window.addEventListener('message',e=>{if(e.source===parent&&e.data.type==='streamlit:render')render(e.data.args)});
+new ResizeObserver(height).observe(document.body);
+send('streamlit:componentReady',{apiVersion:1});height();
+</script></body></html>
