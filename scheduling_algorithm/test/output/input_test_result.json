@@ -1,0 +1,81 @@
+{
+  "status": "OPTIMAL",
+  "solve_time": 0.1263159,
+  "unscheduled_task_ids": [
+    7
+  ],
+  "time_unit": "minutes",
+  "time_origin": "day_0_00:00",
+  "tasks": [
+    {
+      "task_id": 1,
+      "chunks": [
+        {
+          "start": 480,
+          "end": 530
+        },
+        {
+          "start": 780,
+          "end": 820
+        },
+        {
+          "start": 830,
+          "end": 920
+        }
+      ]
+    },
+    {
+      "task_id": 2,
+      "chunks": [
+        {
+          "start": 540,
+          "end": 600
+        },
+        {
+          "start": 660,
+          "end": 720
+        }
+      ]
+    },
+    {
+      "task_id": 3,
+      "chunks": [
+        {
+          "start": 2350,
+          "end": 2410
+        }
+      ]
+    },
+    {
+      "task_id": 4,
+      "chunks": [
+        {
+          "start": 2040,
+          "end": 2160
+        },
+        {
+          "start": 2220,
+          "end": 2340
+        }
+      ]
+    },
+    {
+      "task_id": 5,
+      "chunks": [
+        {
+          "start": 930,
+          "end": 1020
+        }
+      ]
+    },
+    {
+      "task_id": 6,
+      "chunks": [
+        {
+          "start": 2420,
+          "end": 2450
+        }
+      ]
+    }
+  ]
+}

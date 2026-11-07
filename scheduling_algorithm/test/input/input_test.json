@@ -1,0 +1,114 @@
+{
+  "config": {
+    "day_start": "08:00",
+    "day_end": "17:00",
+    "num_days": 3,
+    "time_limit": 10.0,
+    "slot_minutes": 5,
+    "objective": {
+      "max_count": 10,
+      "early_finish": 5,
+      "fewer_pieces": 1
+    }
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "name": "Viet bao cao",
+      "duration": 180,
+      "priority": 5,
+      "deadline": {
+        "day": 1,
+        "time": "17:00"
+      },
+      "splittable": true,
+      "min_chunk": 30,
+      "max_chunk": 90
+    },
+    {
+      "id": 2,
+      "name": "Lam bai tap",
+      "duration": 120,
+      "priority": 3,
+      "deadline": {
+        "day": 0,
+        "time": "12:00"
+      },
+      "splittable": true,
+      "min_chunk": 30,
+      "max_chunk": 60
+    },
+    {
+      "id": 3,
+      "name": "Doc tai lieu",
+      "duration": 60,
+      "priority": 2,
+      "splittable": false
+    },
+    {
+      "id": 4,
+      "name": "Lap trinh",
+      "duration": 240,
+      "priority": 4,
+      "deadline": {
+        "day": 2,
+        "time": "17:00"
+      },
+      "splittable": true,
+      "min_chunk": 60,
+      "max_chunk": 120
+    },
+    {
+      "id": 5,
+      "name": "Chuan bi thuyet trinh",
+      "duration": 90,
+      "priority": 3,
+      "deadline": {
+        "day": 1,
+        "time": "12:00"
+      },
+      "splittable": false
+    },
+    {
+      "id": 6,
+      "name": "Tra loi email",
+      "duration": 30,
+      "priority": 1,
+      "splittable": false
+    },
+    {
+      "id": 7,
+      "name": "Task khong kip deadline",
+      "duration": 120,
+      "priority": 10,
+      "deadline": {
+        "day": 0,
+        "time": "09:00"
+      },
+      "splittable": false
+    }
+  ],
+  "fixed_tasks": [
+    {
+      "name": "Nghi trua",
+      "start": "12:00",
+      "end": "13:00"
+    },
+    {
+      "name": "Hop nhom",
+      "days": [
+        0
+      ],
+      "start": "10:00",
+      "end": "11:00"
+    },
+    {
+      "name": "Len lop",
+      "days": [
+        1
+      ],
+      "start": "08:00",
+      "end": "10:00"
+    }
+  ]
+}
