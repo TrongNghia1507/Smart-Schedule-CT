@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "saved_at": "2026-10-19T08:05:12",
+  "settings": {
+    "week_start": "2026-10-19",
+    "now_override": null,
+    "sleep": {
+      "start": "23:00",
+      "end": "05:00"
+    }
+  },
+  "fixed_tasks": [
+    {
+      "id": "ft_a1b2c3d4",
+      "name": "Học Hệ thống máy tính",
+      "repeat_days": ["mon", "thu"],
+      "one_off_date": null,
+      "start": "07:30",
+      "end": "11:00",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "is_sleep": false
+    },
+    {
+      "id": "ft_b2c3d4e5",
+      "name": "Ăn trưa & Nghỉ ngơi",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      "one_off_date": null,
+      "start": "11:30",
+      "end": "12:30",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "is_sleep": false
+    },
+    {
+      "id": "ft_c3d4e5f6",
+      "name": "Chạy bộ chiều",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      "one_off_date": null,
+      "start": "17:00",
+      "end": "18:00",
+      "is_flexible": true,
+      "min_duration_min": 30,
+      "is_sleep": false
+    }
+  ],
+  "deadline_tasks": [
+    {
+      "id": "dt_0a1b2c3d",
+      "name": "Sửa slide thuyết trình chiều nay",
+      "kind": "asap",
+      "importance": 1,
+      "deadline": "2026-10-19T16:00",
+      "remaining_min": 60,
+      "focus": "high",
+      "buffer_min": 0,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90
+    },
+    {
+      "id": "dt_1b2c3d4e",
+      "name": "Điền khảo sát hộ CLB",
+      "kind": "asap",
+      "importance": 2,
+      "deadline": "2026-10-19T21:00",
+      "remaining_min": 30,
+      "focus": "low",
+      "buffer_min": 0,
+      "earliest_start": null,
+      "chunk_min": 30,
+      "chunk_max": 120
+    },
+    {
+      "id": "dt_2c3d4e5f",
+      "name": "Nộp LAB TDTT",
+      "kind": "hard",
+      "importance": 4,
+      "deadline": "2026-10-22T09:50",
+      "remaining_min": 120,
+      "focus": "high",
+      "buffer_min": 15,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90
+    },
+    {
+      "id": "dt_3d4e5f60",
+      "name": "Viết báo cáo Đồ án C++",
+      "kind": "hard",
+      "importance": 8,
+      "deadline": "2026-10-23T23:55",
+      "remaining_min": 180,
+      "focus": "high",
+      "buffer_min": 15,
+      "earliest_start": "2026-10-21T08:00",
+      "chunk_min": 45,
+      "chunk_max": 90
+    },
+    {
+      "id": "dt_4e5f6071",
+      "name": "Đọc trước chương mới Mạng MT",
+      "kind": "soft",
+      "importance": 10,
+      "deadline": "2026-10-23T04:55",
+      "remaining_min": 90,
+      "focus": "high",
+      "buffer_min": 0,
+      "earliest_start": null,
+      "chunk_min": 30,
+      "chunk_max": 90
+    },
+    {
+      "id": "dt_5f607182",
+      "name": "Dọn lại giá sách & bàn học",
+      "kind": "soft",
+      "importance": 3,
+      "deadline": "2026-10-25T22:00",
+      "remaining_min": 60,
+      "focus": "low",
+      "buffer_min": 0,
+      "earliest_start": null,
+      "chunk_min": 20,
+      "chunk_max": 60
+    }
+  ]
+}
