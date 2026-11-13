@@ -1,0 +1,630 @@
+{
+  "schema_version": 2,
+  "created_at": "2026-11-13T17:11:38",
+  "window": {
+    "week_start": "2026-11-16",
+    "week_end": "2026-11-22",
+    "now": "2026-11-13T17:11",
+    "sleep": {
+      "start": "23:00",
+      "end": "05:00",
+      "is_default": true,
+      "default_bands": [
+        {
+          "start": "2026-11-16T00:00:00",
+          "end": "2026-11-16T05:00:00"
+        },
+        {
+          "start": "2026-11-16T23:00:00",
+          "end": "2026-11-17T00:00:00"
+        },
+        {
+          "start": "2026-11-17T00:00:00",
+          "end": "2026-11-17T05:00:00"
+        },
+        {
+          "start": "2026-11-17T23:00:00",
+          "end": "2026-11-18T00:00:00"
+        },
+        {
+          "start": "2026-11-18T00:00:00",
+          "end": "2026-11-18T05:00:00"
+        },
+        {
+          "start": "2026-11-18T23:00:00",
+          "end": "2026-11-19T00:00:00"
+        },
+        {
+          "start": "2026-11-19T00:00:00",
+          "end": "2026-11-19T05:00:00"
+        },
+        {
+          "start": "2026-11-19T23:00:00",
+          "end": "2026-11-20T00:00:00"
+        },
+        {
+          "start": "2026-11-20T00:00:00",
+          "end": "2026-11-20T05:00:00"
+        },
+        {
+          "start": "2026-11-20T23:00:00",
+          "end": "2026-11-21T00:00:00"
+        },
+        {
+          "start": "2026-11-21T00:00:00",
+          "end": "2026-11-21T05:00:00"
+        },
+        {
+          "start": "2026-11-21T23:00:00",
+          "end": "2026-11-22T00:00:00"
+        },
+        {
+          "start": "2026-11-22T00:00:00",
+          "end": "2026-11-22T05:00:00"
+        },
+        {
+          "start": "2026-11-22T23:00:00",
+          "end": "2026-11-23T00:00:00"
+        }
+      ]
+    }
+  },
+  "fixed_tasks": [
+    {
+      "id": "ft_a0b691a9",
+      "name": "Ăn trưa",
+      "repeat_days": [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat"
+      ],
+      "one_off_date": null,
+      "start": "11:30",
+      "end": "13:00",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 90,
+      "occurrences": [
+        {
+          "date": "2026-11-16",
+          "start": "2026-11-16T11:30:00",
+          "end": "2026-11-16T13:00:00"
+        },
+        {
+          "date": "2026-11-17",
+          "start": "2026-11-17T11:30:00",
+          "end": "2026-11-17T13:00:00"
+        },
+        {
+          "date": "2026-11-18",
+          "start": "2026-11-18T11:30:00",
+          "end": "2026-11-18T13:00:00"
+        },
+        {
+          "date": "2026-11-19",
+          "start": "2026-11-19T11:30:00",
+          "end": "2026-11-19T13:00:00"
+        },
+        {
+          "date": "2026-11-20",
+          "start": "2026-11-20T11:30:00",
+          "end": "2026-11-20T13:00:00"
+        },
+        {
+          "date": "2026-11-21",
+          "start": "2026-11-21T11:30:00",
+          "end": "2026-11-21T13:00:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_6f8b3406",
+      "name": "Ăn tối",
+      "repeat_days": [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat"
+      ],
+      "one_off_date": null,
+      "start": "18:00",
+      "end": "19:00",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 60,
+      "occurrences": [
+        {
+          "date": "2026-11-16",
+          "start": "2026-11-16T18:00:00",
+          "end": "2026-11-16T19:00:00"
+        },
+        {
+          "date": "2026-11-17",
+          "start": "2026-11-17T18:00:00",
+          "end": "2026-11-17T19:00:00"
+        },
+        {
+          "date": "2026-11-18",
+          "start": "2026-11-18T18:00:00",
+          "end": "2026-11-18T19:00:00"
+        },
+        {
+          "date": "2026-11-19",
+          "start": "2026-11-19T18:00:00",
+          "end": "2026-11-19T19:00:00"
+        },
+        {
+          "date": "2026-11-20",
+          "start": "2026-11-20T18:00:00",
+          "end": "2026-11-20T19:00:00"
+        },
+        {
+          "date": "2026-11-21",
+          "start": "2026-11-21T18:00:00",
+          "end": "2026-11-21T19:00:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_ac62b7f6",
+      "name": "Thể dục 1",
+      "repeat_days": [
+        "mon"
+      ],
+      "one_off_date": null,
+      "start": "07:30",
+      "end": "11:10",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 220,
+      "occurrences": [
+        {
+          "date": "2026-11-16",
+          "start": "2026-11-16T07:30:00",
+          "end": "2026-11-16T11:10:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_d5e01928",
+      "name": "TDTT C36 LT",
+      "repeat_days": [
+        "mon"
+      ],
+      "one_off_date": null,
+      "start": "13:30",
+      "end": "18:00",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 270,
+      "occurrences": [
+        {
+          "date": "2026-11-16",
+          "start": "2026-11-16T13:30:00",
+          "end": "2026-11-16T18:00:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_3cad1518",
+      "name": "KTDC",
+      "repeat_days": [
+        "tue"
+      ],
+      "one_off_date": null,
+      "start": "07:30",
+      "end": "11:10",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 220,
+      "occurrences": [
+        {
+          "date": "2026-11-17",
+          "start": "2026-11-17T07:30:00",
+          "end": "2026-11-17T11:10:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_f8ca93d2",
+      "name": "MMT",
+      "repeat_days": [
+        "tue"
+      ],
+      "one_off_date": null,
+      "start": "13:30",
+      "end": "18:00",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 270,
+      "occurrences": [
+        {
+          "date": "2026-11-17",
+          "start": "2026-11-17T13:30:00",
+          "end": "2026-11-17T18:00:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_ea30c219",
+      "name": "Khám gan",
+      "repeat_days": [
+        "wed"
+      ],
+      "one_off_date": null,
+      "start": "06:30",
+      "end": "09:30",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 180,
+      "occurrences": [
+        {
+          "date": "2026-11-18",
+          "start": "2026-11-18T06:30:00",
+          "end": "2026-11-18T09:30:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_66494097",
+      "name": "IELTS LCT",
+      "repeat_days": [
+        "wed"
+      ],
+      "one_off_date": null,
+      "start": "09:30",
+      "end": "11:30",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 120,
+      "occurrences": [
+        {
+          "date": "2026-11-18",
+          "start": "2026-11-18T09:30:00",
+          "end": "2026-11-18T11:30:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_d8893c10",
+      "name": "VTP LT",
+      "repeat_days": [
+        "thu"
+      ],
+      "one_off_date": null,
+      "start": "07:30",
+      "end": "11:10",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 220,
+      "occurrences": [
+        {
+          "date": "2026-11-19",
+          "start": "2026-11-19T07:30:00",
+          "end": "2026-11-19T11:10:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_6f044d30",
+      "name": "TH VTP",
+      "repeat_days": [
+        "thu"
+      ],
+      "one_off_date": null,
+      "start": "13:30",
+      "end": "15:30",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 120,
+      "occurrences": [
+        {
+          "date": "2026-11-19",
+          "start": "2026-11-19T13:30:00",
+          "end": "2026-11-19T15:30:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_b69b2a1d",
+      "name": "LAB CT",
+      "repeat_days": [
+        "fri"
+      ],
+      "one_off_date": null,
+      "start": "07:30",
+      "end": "09:30",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 120,
+      "occurrences": [
+        {
+          "date": "2026-11-20",
+          "start": "2026-11-20T07:30:00",
+          "end": "2026-11-20T09:30:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_ad09ddf3",
+      "name": "IELTS Write Read LCT",
+      "repeat_days": [
+        "sat"
+      ],
+      "one_off_date": null,
+      "start": "13:30",
+      "end": "16:00",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 150,
+      "occurrences": [
+        {
+          "date": "2026-11-21",
+          "start": "2026-11-21T13:30:00",
+          "end": "2026-11-21T16:00:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_a31e5bf4",
+      "name": "Lis/Read online",
+      "repeat_days": [
+        "sun"
+      ],
+      "one_off_date": null,
+      "start": "09:00",
+      "end": "10:30",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 90,
+      "occurrences": [
+        {
+          "date": "2026-11-22",
+          "start": "2026-11-22T09:00:00",
+          "end": "2026-11-22T10:30:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_5da00b40",
+      "name": "Lis/Speak LCT",
+      "repeat_days": [
+        "sun"
+      ],
+      "one_off_date": null,
+      "start": "13:30",
+      "end": "16:30",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 180,
+      "occurrences": [
+        {
+          "date": "2026-11-22",
+          "start": "2026-11-22T13:30:00",
+          "end": "2026-11-22T16:30:00"
+        }
+      ]
+    },
+    {
+      "id": "ft_2d395515",
+      "name": "Chạy bộ",
+      "repeat_days": [
+        "wed",
+        "thu",
+        "fri",
+        "sat"
+      ],
+      "one_off_date": null,
+      "start": "16:00",
+      "end": "17:00",
+      "is_flexible": false,
+      "min_duration_min": null,
+      "duration_min": 60,
+      "occurrences": [
+        {
+          "date": "2026-11-18",
+          "start": "2026-11-18T16:00:00",
+          "end": "2026-11-18T17:00:00"
+        },
+        {
+          "date": "2026-11-19",
+          "start": "2026-11-19T16:00:00",
+          "end": "2026-11-19T17:00:00"
+        },
+        {
+          "date": "2026-11-20",
+          "start": "2026-11-20T16:00:00",
+          "end": "2026-11-20T17:00:00"
+        },
+        {
+          "date": "2026-11-21",
+          "start": "2026-11-21T16:00:00",
+          "end": "2026-11-21T17:00:00"
+        }
+      ]
+    }
+  ],
+  "deadline_tasks": [
+    {
+      "id": "dt_8d74d20b",
+      "name": "Làm slide MMT",
+      "kind": "hard",
+      "importance": 1,
+      "deadline": "2026-11-17T11:30",
+      "remaining_min": 90,
+      "focus": "low",
+      "buffer_min": 5,
+      "earliest_start": null,
+      "chunk_min": 30,
+      "chunk_max": 60,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-17T11:30:00"
+      },
+      "effective_chunk": {
+        "min": 30,
+        "max": 60
+      },
+      "can_split": true
+    },
+    {
+      "id": "dt_6479414d",
+      "name": "Làm bài lab CT",
+      "kind": "hard",
+      "importance": 2,
+      "deadline": "2026-11-18T22:00",
+      "remaining_min": 120,
+      "focus": "high",
+      "buffer_min": 10,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-18T22:00:00"
+      },
+      "effective_chunk": {
+        "min": 45,
+        "max": 90
+      },
+      "can_split": true
+    },
+    {
+      "id": "dt_e72f1aa3",
+      "name": "Học thi VTP2",
+      "kind": "hard",
+      "importance": 2,
+      "deadline": "2026-11-21T22:00",
+      "remaining_min": 420,
+      "focus": "high",
+      "buffer_min": 15,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-21T22:00:00"
+      },
+      "effective_chunk": {
+        "min": 45,
+        "max": 90
+      },
+      "can_split": true
+    },
+    {
+      "id": "dt_b767aa6c",
+      "name": "Học thi MMT",
+      "kind": "hard",
+      "importance": 2,
+      "deadline": "2026-11-21T22:00",
+      "remaining_min": 420,
+      "focus": "high",
+      "buffer_min": 15,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-21T22:00:00"
+      },
+      "effective_chunk": {
+        "min": 45,
+        "max": 90
+      },
+      "can_split": true
+    },
+    {
+      "id": "dt_5fb03bc3",
+      "name": "Làm hệ thống điểm danh",
+      "kind": "soft",
+      "importance": 2,
+      "deadline": "2026-11-21T22:00",
+      "remaining_min": 180,
+      "focus": "high",
+      "buffer_min": 5,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-21T22:00:00"
+      },
+      "effective_chunk": {
+        "min": 45,
+        "max": 90
+      },
+      "can_split": true
+    },
+    {
+      "id": "dt_e753e1db",
+      "name": "Làm đồ án CT",
+      "kind": "hard",
+      "importance": 2,
+      "deadline": "2026-11-21T22:00",
+      "remaining_min": 360,
+      "focus": "high",
+      "buffer_min": 5,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-21T22:00:00"
+      },
+      "effective_chunk": {
+        "min": 45,
+        "max": 90
+      },
+      "can_split": true
+    },
+    {
+      "id": "dt_fe39b331",
+      "name": "Tự học IELTS",
+      "kind": "hard",
+      "importance": 2,
+      "deadline": "2026-11-21T22:00",
+      "remaining_min": 210,
+      "focus": "high",
+      "buffer_min": 5,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-21T22:00:00"
+      },
+      "effective_chunk": {
+        "min": 45,
+        "max": 90
+      },
+      "can_split": true
+    },
+    {
+      "id": "dt_7e7edd0d",
+      "name": "Học ML",
+      "kind": "hard",
+      "importance": 2,
+      "deadline": "2026-11-21T22:00",
+      "remaining_min": 120,
+      "focus": "high",
+      "buffer_min": 5,
+      "earliest_start": null,
+      "chunk_min": 45,
+      "chunk_max": 90,
+      "effective_window": {
+        "start": "2026-11-13T17:11:38.419713",
+        "end": "2026-11-21T22:00:00"
+      },
+      "effective_chunk": {
+        "min": 45,
+        "max": 90
+      },
+      "can_split": true
+    }
+  ]
+}

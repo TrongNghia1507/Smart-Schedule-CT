@@ -1,0 +1,274 @@
+{
+  "week_start": "2026-11-09",
+  "now": "2026-11-09 00:00",
+  "fixed": [
+    {
+      "name": "Ngủ",
+      "days": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "start": "22:00",
+      "end": "07:30",
+      "type": "sleep"
+    },
+    {
+      "name": "Ăn trưa",
+      "days": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "start": "11:30",
+      "end": "12:30",
+      "type": "meal"
+    },
+    {
+      "name": "Ăn tối",
+      "days": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "start": "18:00",
+      "end": "19:00",
+      "type": "meal"
+    },
+    {
+      "name": "TD 1",
+      "days": [
+        0
+      ],
+      "start": "07:30",
+      "end": "11:10",
+      "type": "study"
+    },
+    {
+      "name": "TDTTC36",
+      "days": [
+        0
+      ],
+      "start": "13:30",
+      "end": "17:10",
+      "type": "study",
+      "after_min": 30
+    },
+    {
+      "name": "KTDC",
+      "days": [
+        1
+      ],
+      "start": "07:30",
+      "end": "11:10",
+      "type": "study"
+    },
+    {
+      "name": "MMT (lớp)",
+      "days": [
+        1
+      ],
+      "start": "13:30",
+      "end": "17:10",
+      "type": "study",
+      "after_min": 30
+    },
+    {
+      "name": "Khám gan",
+      "days": [
+        2
+      ],
+      "start": "06:30",
+      "end": "09:00",
+      "type": "other"
+    },
+    {
+      "name": "IELTS LCT",
+      "days": [
+        2
+      ],
+      "start": "09:30",
+      "end": "11:30",
+      "type": "study",
+      "prep_min": 30
+    },
+    {
+      "name": "VTP lý thuyết E306",
+      "days": [
+        3
+      ],
+      "start": "07:30",
+      "end": "11:10",
+      "type": "study"
+    },
+    {
+      "name": "TH VTP E307",
+      "days": [
+        3
+      ],
+      "start": "13:30",
+      "end": "15:30",
+      "type": "study",
+      "after_min": 30
+    },
+    {
+      "name": "Lab CT (lớp)",
+      "days": [
+        4
+      ],
+      "start": "07:30",
+      "end": "09:30",
+      "type": "study",
+      "after_min": 30
+    },
+    {
+      "name": "IELTS Write/Read",
+      "days": [
+        5
+      ],
+      "start": "13:30",
+      "end": "16:00",
+      "type": "study"
+    },
+    {
+      "name": "LIS/Read ONL",
+      "days": [
+        6
+      ],
+      "start": "09:00",
+      "end": "10:30",
+      "type": "study"
+    },
+    {
+      "name": "LIS/Speak",
+      "days": [
+        6
+      ],
+      "start": "13:30",
+      "end": "16:30",
+      "type": "study",
+      "prep_min": 30,
+      "after_min": 30
+    },
+    {
+      "name": "Chạy bộ",
+      "days": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "start": "16:30",
+      "end": "17:30",
+      "type": "leisure"
+    },
+    {
+      "name": "Chạy bộ",
+      "days": [
+        6
+      ],
+      "start": "17:00",
+      "end": "18:00",
+      "type": "leisure"
+    }
+  ],
+  "deadlines": [
+    {
+      "name": "Slide MMT",
+      "mode": "progress",
+      "kind": "hard",
+      "date": "2026-11-10",
+      "time": "11:30",
+      "estimate_h": 1.5,
+      "focus": "low",
+      "importance": 7
+    },
+    {
+      "name": "Lab CT",
+      "mode": "progress",
+      "kind": "hard",
+      "date": "2026-11-11",
+      "time": "22:00",
+      "estimate_h": 2,
+      "focus": "high",
+      "buffer": true,
+      "importance": 8
+    },
+    {
+      "name": "Học thi VTP2",
+      "mode": "progress",
+      "kind": "hard",
+      "date": "2026-11-14",
+      "time": "22:00",
+      "estimate_h": 7,
+      "focus": "high",
+      "buffer": true,
+      "importance": 9
+    },
+    {
+      "name": "Học thi MMT",
+      "mode": "progress",
+      "kind": "hard",
+      "date": "2026-11-14",
+      "time": "22:00",
+      "estimate_h": 7,
+      "focus": "high",
+      "buffer": true,
+      "importance": 9
+    },
+    {
+      "name": "Làm hệ thống điểm danh",
+      "mode": "progress",
+      "kind": "hard",
+      "date": "2026-11-14",
+      "time": "22:00",
+      "estimate_h": 7,
+      "focus": "high",
+      "buffer": true,
+      "importance": 7
+    },
+    {
+      "name": "Làm đồ án CT",
+      "mode": "progress",
+      "kind": "hard",
+      "date": "2026-11-14",
+      "time": "22:00",
+      "estimate_h": 6,
+      "focus": "high",
+      "buffer": true,
+      "importance": 8
+    },
+    {
+      "name": "Học ML",
+      "mode": "progress",
+      "kind": "soft",
+      "date": "2026-11-15",
+      "time": "22:00",
+      "estimate_h": 2,
+      "focus": "high",
+      "importance": 5
+    },
+    {
+      "name": "Tự học IELTS",
+      "mode": "progress",
+      "kind": "soft",
+      "date": "2026-11-15",
+      "time": "22:00",
+      "estimate_h": 3.5,
+      "focus": "low",
+      "importance": 5
+    }
+  ]
+}
