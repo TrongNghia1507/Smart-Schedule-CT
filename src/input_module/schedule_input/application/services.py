@@ -16,6 +16,13 @@ class TaskInputService:
     def persist(self):self.repository.save(self.data,self.now_override)
     def submit(self,raw,fixed=False):
         self.sync_clock()
+        # Older table payloads may omit fields added in a newer editor.
+        # Preserve omitted reserves on updates; an explicit zero still clears them.
+        existing=self.data._tasks.get(raw.get('id'))
+        if fixed and isinstance(existing,FixedTask):
+            raw=dict(raw)
+            raw.setdefault('prep_min',existing.prep_min)
+            raw.setdefault('after_min',existing.after_min)
         task,report=TaskFactory.from_raw(raw,fixed)
         if not task:return report
         candidate=deepcopy(self.data)

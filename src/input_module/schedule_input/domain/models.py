@@ -84,8 +84,12 @@ class DeadlineTask(Task):
 @dataclass(frozen=True)
 class FixedTask(Task):
     repeat:RepeatRule; time_range:TimeRange; is_flexible:bool; flexibility:Flexibility; is_sleep:bool=False
+    prep_min:int=0
+    after_min:int=0
     @property
     def duration_min(self): return self.time_range.duration_min()
+    def occupied_occurrences(self,week_start):
+        return tuple((a-timedelta(minutes=self.prep_min),b+timedelta(minutes=self.after_min)) for a,b in self.occurrences(week_start))
     def occurrences(self,week_start):
         left=datetime.combine(week_start,datetime.min.time()); right=left+timedelta(days=7)
         result=[]
