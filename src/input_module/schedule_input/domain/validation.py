@@ -21,7 +21,7 @@ def free_minutes(data):
     left=max(data.window.now,datetime.combine(data.window.week_start,datetime.min.time()))
     right=datetime.combine(data.window.week_start+timedelta(days=7),datetime.min.time())
     if left>=right:return 0
-    intervals=[(max(a,left),min(b,right)) for t in data.fixed_tasks for a,b in t.occurrences(data.window.week_start)]
+    intervals=[(max(a,left),min(b,right)) for t in data.fixed_tasks for a,b in t.occupied_occurrences(data.window.week_start)]
     intervals += [(max(a,left),min(b,right)) for a,b in sleep_bands(data)]
     total=0; last=left
     for a,b in sorted((a,b) for a,b in intervals if a<b):
@@ -54,7 +54,7 @@ class FixedRules(ValidationRule):
         r=ValidationReport()
         if t.repeat.is_one_off() and not data.window.week_start<=t.repeat.one_off_date<=data.window.week_end():r.add('F06',Severity.WARNING,'one_off_date',t.id,'Ngày diễn ra ngoài tuần đang lập lịch.')
         if t.time_range.crosses_midnight():r.add('F07',Severity.INFO,'end',t.id,'Việc kéo sang hôm sau, lịch hiển thị thành các đoạn theo ngày.')
-        if not t.is_sleep and any(overlap(a,b) for a in t.occurrences(data.window.week_start) for b in sleep_bands(data)):r.add('F05',Severity.INFO,'start',t.id,'Chạm giờ ngủ mặc định; kiểm tra lại giờ.')
+        if not t.is_sleep and any(overlap(a,b) for a in t.occupied_occurrences(data.window.week_start) for b in sleep_bands(data)):r.add('F05',Severity.INFO,'start',t.id,'Chạm giờ ngủ mặc định; kiểm tra lại giờ.')
         return r.issues
 class ValidationService:
     def __init__(self):self.rules={DeadlineTask:DeadlineRules(),FixedTask:FixedRules()}
@@ -65,7 +65,7 @@ class ValidationService:
         tasks=data.fixed_tasks
         for i,a in enumerate(tasks):
             for b in tasks[i+1:]:
-                if any(overlap(x,y) for x in a.occurrences(data.window.week_start) for y in b.occurrences(data.window.week_start)):
+                if any(overlap(x,y) for x in a.occupied_occurrences(data.window.week_start) for y in b.occupied_occurrences(data.window.week_start)):
                     rigid=a.flexibility.is_rigid() and b.flexibility.is_rigid()
                     for t,o in ((a,b),(b,a)):
                         r.add('F04',Severity.ERROR if rigid else Severity.WARNING,'start',t.id,f'Chồng giờ với “{o.name}”. Hãy sửa giờ hoặc độ co dãn.')
