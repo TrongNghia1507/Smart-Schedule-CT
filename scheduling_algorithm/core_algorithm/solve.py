@@ -8,12 +8,10 @@ SCALE = 10**7
 DEFAULT_OBJECTIVE = {"max_priority": 1}
 
 def add_fixed(model, fixed: list[FixedTask], cfg: Config) -> list:
-    spd = cfg.slots_per_day
     intervals = []
     for i, f in enumerate(fixed):
-        base = f.day * spd
-        s = base + cfg.to_slot(f.start)
-        e = base + cfg.to_slot(f.end)
+        s = cfg.to_slot(f.start)
+        e = cfg.to_slot(f.end)
         intervals.append(model.NewIntervalVar(s, e - s, e, f"fixed_{i}"))
     return intervals
 
@@ -24,6 +22,7 @@ def build_task(model, t: Task, cfg: Config, present):
     horizon = cfg.horizon_slots
     dur = cfg.to_slot(t.duration)
     deadline = cfg.to_slot(t.deadline) if t.deadline is not None else horizon
+    earliest_start = -cfg.to_slot(-max(cfg.now, t.earliest_start))
 
     if t.splittable:
         min_c = cfg.to_slot(t.min_chunk)
@@ -50,6 +49,7 @@ def build_task(model, t: Task, cfg: Config, present):
         model.Add(day == 0).OnlyEnforceIf(used.Not())
 
         model.Add(start >= day * spd + win_start).OnlyEnforceIf(used)
+        model.Add(start >= earliest_start).OnlyEnforceIf(used)
         model.Add(end <= day * spd + win_end).OnlyEnforceIf(used)
         model.Add(end <= deadline).OnlyEnforceIf(used)
 
@@ -69,6 +69,38 @@ def build_task(model, t: Task, cfg: Config, present):
     return chunks, finish
 
 
+def add_daily_caps(model, tasks: list[Task], chunks: dict[str, list[Chunk]], cfg: Config):
+    if cfg.daily_cap is None and cfg.high_cap is None:
+        return
+
+    daily_load = [[] for _ in range(cfg.num_days)]
+    high_load = [[] for _ in range(cfg.num_days)]
+    for task in tasks:
+        if cfg.daily_cap is None and task.focus != "high":
+            continue
+        max_length = cfg.to_slot(task.max_chunk if task.splittable else task.duration)
+        for index, chunk in enumerate(chunks[task.id]):
+            assignments = []
+            for day in range(cfg.num_days):
+                tag = f"{task.id}_{index}_{day}"
+                on_day = model.NewBoolVar(f"on_day_{tag}")
+                load = model.NewIntVar(0, max_length, f"day_load_{tag}")
+                model.Add(chunk.day == day).OnlyEnforceIf(on_day)
+                model.Add(load == chunk.length).OnlyEnforceIf(on_day)
+                model.Add(load == 0).OnlyEnforceIf(on_day.Not())
+                assignments.append(on_day)
+                daily_load[day].append(load)
+                if task.focus == "high":
+                    high_load[day].append(load)
+            model.Add(sum(assignments) == chunk.used)
+
+    for day in range(cfg.num_days):
+        if cfg.daily_cap is not None:
+            model.Add(sum(daily_load[day]) <= cfg.to_slot(cfg.daily_cap))
+        if cfg.high_cap is not None:
+            model.Add(sum(high_load[day]) <= cfg.to_slot(cfg.high_cap))
+
+
 def build_objective(model, ctx: Ctx) -> dict:
     weights = {
         name: weight
@@ -78,16 +110,18 @@ def build_objective(model, ctx: Ctx) -> dict:
 
     terms = []
     scores = {}
+    total_bound = 0
     for name, weight in weights.items():
-        if weight <= 0:
-            continue
         score, bound = CRITERIA[name](ctx)
         bound = max(bound, 1)
         coef = weight * max(1, SCALE // bound)
         terms.append(coef * score)
+        total_bound += coef * bound
         scores[name] = (score, bound)
 
-    model.Maximize(sum(terms))
+    # One more scheduled hard task outweighs every configured score combined.
+    hard_count = sum(ctx.present[t.id] for t in ctx.tasks if t.kind == "hard")
+    model.Maximize((total_bound + 1) * hard_count + sum(terms))
     return scores
 
 
@@ -99,21 +133,55 @@ def solve(tasks: list[Task], fixed: list[FixedTask], cfg: Config) -> SolveResult
         present[t.id] = model.NewBoolVar(f"present_{t.id}")
         chunks[t.id], finish[t.id] = build_task(model, t, cfg, present[t.id])
 
+    add_daily_caps(model, tasks, chunks, cfg)
     intervals = add_fixed(model, fixed, cfg)
     for t in tasks:
         for k, c in enumerate(chunks[t.id]):
             intervals.append(
                 model.NewOptionalIntervalVar(c.start, c.length, c.end, c.used, f"iv_{t.id}_{k}")
             )
+
+    # Reserve each task's buffer after its final chunk. It is a real blocked
+    # interval, so no other task or fixed event can occupy that time.
+    for t in tasks:
+        buffer_slots = cfg.to_slot(t.buffer_minutes)
+        if buffer_slots == 0:
+            continue
+
+        deadline = cfg.to_slot(t.deadline) if t.deadline is not None else cfg.horizon_slots
+        task_chunks = chunks[t.id]
+        for k, c in enumerate(task_chunks):
+            is_last = model.NewBoolVar(f"last_{t.id}_{k}")
+            if k == len(task_chunks) - 1:
+                model.Add(is_last == c.used)
+            else:
+                next_used = task_chunks[k + 1].used
+                model.AddImplication(is_last, c.used)
+                model.AddImplication(is_last, next_used.Not())
+                model.AddBoolOr([c.used.Not(), next_used, is_last])
+
+            model.Add(
+                c.end + buffer_slots <= c.day * cfg.slots_per_day + cfg.to_slot(cfg.day_end)
+            ).OnlyEnforceIf(is_last)
+            model.Add(c.end + buffer_slots <= deadline).OnlyEnforceIf(is_last)
+            intervals.append(
+                model.NewOptionalIntervalVar(
+                    c.end,
+                    buffer_slots,
+                    c.end + buffer_slots,
+                    is_last,
+                    f"buffer_{t.id}_{k}",
+                )
+            )
     model.AddNoOverlap(intervals)
 
     # Only task chunks receive padding; fixed intervals remain unchanged.
-    # Round up to slots so the actual gap is never shorter than requested.
-    break_slots = (
-        cfg.break_minutes + cfg.slot_minutes - 1
-    ) // cfg.slot_minutes
+    # A task may use its own break duration from the normalized input.
     task_intervals = []
     for t in tasks:
+        break_slots = (
+            t.break_minutes + cfg.slot_minutes - 1
+        ) // cfg.slot_minutes
         for k, c in enumerate(chunks[t.id]):
             task_intervals.append(
                 model.NewOptionalIntervalVar(

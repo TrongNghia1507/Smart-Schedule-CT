@@ -1,0 +1,150 @@
+{
+  "status": "FEASIBLE",
+  "solve_time": 10.0555819,
+  "unscheduled_task_ids": [
+    "dt_8d74d20b"
+  ],
+  "time_unit": "minutes",
+  "time_origin": "day_0_00:00",
+  "tasks": [
+    {
+      "task_id": "dt_6479414d",
+      "chunks": [
+        {
+          "start": 1195,
+          "end": 1240
+        },
+        {
+          "start": 2580,
+          "end": 2655
+        }
+      ]
+    },
+    {
+      "task_id": "dt_e72f1aa3",
+      "chunks": [
+        {
+          "start": 5340,
+          "end": 5385
+        },
+        {
+          "start": 6540,
+          "end": 6600
+        },
+        {
+          "start": 6780,
+          "end": 6840
+        },
+        {
+          "start": 7650,
+          "end": 7710
+        },
+        {
+          "start": 7720,
+          "end": 7810
+        },
+        {
+          "start": 7845,
+          "end": 7890
+        },
+        {
+          "start": 8220,
+          "end": 8280
+        }
+      ]
+    },
+    {
+      "task_id": "dt_b767aa6c",
+      "chunks": [
+        {
+          "start": 1250,
+          "end": 1320
+        },
+        {
+          "start": 2665,
+          "end": 2755
+        },
+        {
+          "start": 3660,
+          "end": 3740
+        },
+        {
+          "start": 3750,
+          "end": 3840
+        },
+        {
+          "start": 4020,
+          "end": 4110
+        }
+      ]
+    },
+    {
+      "task_id": "dt_5fb03bc3",
+      "chunks": [
+        {
+          "start": 6610,
+          "end": 6700
+        },
+        {
+          "start": 6900,
+          "end": 6990
+        }
+      ]
+    },
+    {
+      "task_id": "dt_e753e1db",
+      "chunks": [
+        {
+          "start": 1140,
+          "end": 1185
+        },
+        {
+          "start": 5460,
+          "end": 5540
+        },
+        {
+          "start": 5550,
+          "end": 5640
+        },
+        {
+          "start": 6330,
+          "end": 6395
+        },
+        {
+          "start": 7000,
+          "end": 7080
+        }
+      ]
+    },
+    {
+      "task_id": "dt_fe39b331",
+      "chunks": [
+        {
+          "start": 6405,
+          "end": 6450
+        },
+        {
+          "start": 8340,
+          "end": 8415
+        },
+        {
+          "start": 8425,
+          "end": 8515
+        }
+      ]
+    },
+    {
+      "task_id": "dt_7e7edd0d",
+      "chunks": [
+        {
+          "start": 3900,
+          "end": 3945
+        },
+        {
+          "start": 4120,
+          "end": 4195
+        }
+      ]
+    }
+  ]
+}
