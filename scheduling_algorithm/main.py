@@ -5,9 +5,9 @@ import sys
 from itertools import zip_longest
 from pathlib import Path
 
-from models import MINUTES_PER_DAY, Config, FixedTask, SolveResult, Task
-from parseInput import parse_input
-from parseOutput import parse_output
+from core_algorithm.models import MINUTES_PER_DAY, Config, FixedTask, SolveResult, Task
+from core_algorithm.parseInput import parse_input
+from parseOutput import free_time_by_day, parse_output
 
 
 def print_table(headers, rows, *, compact=False):
@@ -39,35 +39,9 @@ def clock_time(minutes: int) -> str:
 
 def print_free_time(result: SolveResult, tasks: list[Task],
                     fixed: list[FixedTask], cfg: Config) -> None:
-    busy = [(item.start, item.end) for item in fixed]
-    for task in tasks:
-        chunks = result.chunks.get(task.id, [])
-        if not chunks:
-            continue
-        break_slots = -cfg.to_slot(-task.break_minutes)
-        buffer_slots = cfg.to_slot(task.buffer_minutes)
-        last_end = max(end for _, end in chunks)
-        for start, end in chunks:
-            padding = max(break_slots, buffer_slots) if end == last_end else break_slots
-            busy.append((cfg.to_minutes(start), cfg.to_minutes(end + padding)))
-    busy.sort()
-
     columns = []
-    for day in range(cfg.num_days):
+    for day, gaps in enumerate(free_time_by_day(result, cfg, tasks, fixed)):
         base = day * MINUTES_PER_DAY
-        cursor = max(cfg.now, base + cfg.day_start)
-        day_end = base + cfg.day_end
-        gaps = []
-        for start, end in busy:
-            if cursor >= day_end or start >= day_end:
-                break
-            if end <= cursor:
-                continue
-            if start > cursor:
-                gaps.append((cursor, start))
-            cursor = max(cursor, end)
-        if cursor < day_end:
-            gaps.append((cursor, day_end))
         columns.append([
             f"{clock_time(start - base)}-{clock_time(end - base)}"
             for start, end in gaps
@@ -158,11 +132,11 @@ def main() -> int:
     if input_path.resolve() == output_path.resolve():
         parser.error("File output phai khac file input.")
 
-    from solve import solve
+    from core_algorithm.solve import solve
 
     tasks, cfg, fixed = parse_input(str(input_path))
     result = solve(tasks, fixed, cfg)
-    output_path.write_text(parse_output(result, cfg, tasks) + "\n", encoding="utf-8")
+    output_path.write_text(parse_output(result, cfg, tasks, fixed) + "\n", encoding="utf-8")
     print_result(result, tasks, fixed, cfg)
     print(f"\nJSON ket qua: {output_path}")
     return 0 if result.status in ("OPTIMAL", "FEASIBLE") else 1

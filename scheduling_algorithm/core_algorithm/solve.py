@@ -1,8 +1,8 @@
 from __future__ import annotations
 from ortools.sat.python import cp_model
-from models import Task, Config, FixedTask, SolveResult
-from context import Chunk, Ctx
-from criteria import CRITERIA
+from .models import Task, Config, FixedTask, SolveResult
+from .context import Chunk, Ctx
+from .criteria import CRITERIA
 
 SCALE = 10**7
 DEFAULT_OBJECTIVE = {"max_priority": 1}
