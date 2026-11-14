@@ -1,3 +1,16 @@
+$dataDir = Join-Path $PSScriptRoot 'data'
+if (Test-Path -LiteralPath $dataDir) {
+    'stop' | Set-Content -LiteralPath (Join-Path $dataDir 'server.stop')
+}
+$supervisorPid = Join-Path $dataDir 'supervisor.pid'
+if (Test-Path -LiteralPath $supervisorPid) {
+    $supervisorId = [int](Get-Content -LiteralPath $supervisorPid)
+    $supervisor = Get-CimInstance Win32_Process -Filter "ProcessId = $supervisorId"
+    if ($supervisor -and $supervisor.CommandLine.Contains((Join-Path $PSScriptRoot 'serve_forever.py'))) {
+        Stop-Process -Id $supervisorId
+        Remove-Item -LiteralPath $supervisorPid
+    }
+}
 $pidFile = Join-Path $PSScriptRoot 'data\server.pid'
 if (Test-Path -LiteralPath $pidFile) {
     $serverId = [int](Get-Content -LiteralPath $pidFile)

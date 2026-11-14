@@ -37,8 +37,10 @@ class TaskFactory:
                 except ValueError as ex:r.add('F02',Severity.ERROR,'end',id,str(ex))
             duration=tr.duration_min() if tr else 1440
             minimum=read('min_duration_min',lambda v:bounded(v,1,duration),'F03',duration) if flex else duration
+            prep=read('prep_min',lambda v:bounded(v,0,90),'F09',0)
+            after=read('after_min',lambda v:bounded(v,0,60),'F10',0)
             if r.has_errors():return None,r
-            return FixedTask(id,name,RepeatRule(days,day),tr,flex,Flexibility(minimum,duration),sleep),r
+            return FixedTask(id,name,RepeatRule(days,day),tr,flex,Flexibility(minimum,duration),sleep,prep,after),r
         kind=read('kind',TaskKind,'V02'); focus=read('focus',FocusLevel,'V02','high')
         importance=read('importance',lambda v:bounded(v,1,3),'V03',2)
         deadline=read('deadline',DateTimeParser.parse,'V04')
@@ -54,6 +56,8 @@ class TaskFactory:
     def to_dict(t):
         row={'id':t.id,'name':t.name}
         if isinstance(t,FixedTask):
+            row['prep_min']=t.prep_min
+            row['after_min']=t.after_min
             row.update(repeat_days=[d.value for d in Weekday if d in t.repeat.days],one_off_date=t.repeat.one_off_date.isoformat() if t.repeat.one_off_date else None,start=hh(t.time_range.start),end=hh(t.time_range.end),is_flexible=t.is_flexible,min_duration_min=t.flexibility.min_min if t.is_flexible else None)
         else:
             row.update(kind=t.kind.value,importance=t.importance,deadline=t.deadline.isoformat(timespec='minutes'),remaining_min=t.remaining_min,focus=t.focus.value,buffer_min=t.buffer.minutes,earliest_start=t.earliest_start.isoformat(timespec='minutes') if t.earliest_start else None,chunk_min=t.chunk.min_min,chunk_max=t.chunk.max_min)

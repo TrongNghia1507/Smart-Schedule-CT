@@ -55,6 +55,48 @@ def apply_theme(mode):
     .st-key-confirm_input button p,.st-key-confirm_snapshot button p{color:white!important}
     @media(max-width:800px){[data-testid="stMainBlockContainer"]{padding:1rem}.app-banner{padding:18px;display:block}.app-banner strong{font-size:19px}.app-banner span{display:block;margin:8px 0}.steps{margin-top:15px;font-size:11px}.step{padding:8px}}
     '''
+    if mode=='light':
+        css+='''
+        :root{color-scheme:light}
+        /* Streamlit's React Aria controls have their own surfaces (not BaseWeb). */
+        [data-testid="stTimeInputTimeDisplay"],
+        [data-testid="stTimeInputTimeDisplay"] [role="group"],
+        [data-testid="stSelectbox"] div:has(> input[role="combobox"]),
+        [data-testid="stSelectbox"] button[aria-label="Open"],
+        [data-testid="stSelectbox"] button[aria-label="Clear value"],
+        [data-testid="stSelectboxVirtualDropdown"]{
+            background:#ffffff!important;color:#263345!important;border-color:#8b9cb0!important;
+        }
+        [data-testid="stTimeInputTimeDisplay"] [role="spinbutton"],
+        [data-testid="stTimeInputTimeDisplay"] [data-type="literal"]{
+            background:transparent!important;color:#263345!important;-webkit-text-fill-color:#263345!important;
+        }
+        [data-testid="stTimeInputTimeDisplay"] [data-focused]{
+            background:#d8eaff!important;color:#174a78!important;outline:1px solid #2f78ba;
+        }
+        [data-testid="stSelectbox"] button svg{color:#263345!important;fill:currentColor}
+        [data-testid="stSelectboxVirtualDropdown"] [role="option"][data-focused],
+        [data-testid="stSelectboxVirtualDropdown"] [role="option"][data-hovered]{background:#eef4fa!important}
+        [data-testid="stCheckbox"] label:not([data-selected])>div:first-of-type,
+        [data-testid="stRadioOption"]:not([data-selected])>div>div:first-child{
+            background:#ffffff!important;border:1px solid #71829b!important;
+        }
+        [data-testid="stCheckbox"] label[data-selected]>div:first-of-type,
+        [data-testid="stRadioOption"][data-selected]>div>div:first-child{
+            background:#2f78ba!important;border-color:#2f78ba!important;
+        }
+        [data-testid="stCheckbox"] label[data-selected] svg{color:#ffffff!important;stroke:#ffffff!important}
+        [data-testid="stSelectbox"] button[aria-label^="Help"]{color:#596b82!important}
+        [data-baseweb="input"] *,[data-baseweb="base-input"] *,[data-baseweb="select"] *,[data-testid="stTimeInput"] input{color:#263345!important;-webkit-text-fill-color:#263345!important}
+        input::placeholder,textarea::placeholder{color:#596b82!important;-webkit-text-fill-color:#596b82!important;opacity:1!important}
+        input:disabled,[data-testid="stNumberInput"] button:disabled{color:#596b82!important;-webkit-text-fill-color:#596b82!important;opacity:1!important;background:#eef2f6!important}
+        [data-testid="stNumberInput"] button,[data-baseweb="select"]>div{background:#ffffff!important;color:#263345!important}
+        button[kind="pills"],button[data-variant="pills"]{background:#eef4fa!important;color:#263345!important;border:1px solid #8b9cb0!important}
+        button[kind="pillsActive"],button[data-variant="pills"][aria-checked="true"]{background:#d8eaff!important;color:#174a78!important;border:1px solid #2f78ba!important}
+        [data-baseweb="tooltip"],[role="tooltip"],[role="tooltip"] *{background:#263345!important;color:#ffffff!important}
+        [role="dialog"] button[aria-label="Close"]{color:#263345!important}
+        [data-baseweb="radio"] label>div:first-child{background:#ffffff;border-color:#596b82}
+        '''
     st.html('<style>'+css+'</style>')
     return p
 

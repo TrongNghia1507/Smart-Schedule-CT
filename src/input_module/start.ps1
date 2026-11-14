@@ -11,9 +11,19 @@ $arguments = @('-m', 'streamlit', 'run', ('"' + $appFile + '"'), '--server.addre
 if ($Background) {
     $logDir = Join-Path $project 'data'
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-    $process = Start-Process -FilePath $interpreter -ArgumentList $arguments -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'server.log') -RedirectStandardError (Join-Path $logDir 'server-error.log') -PassThru
-    $process.Id | Set-Content -LiteralPath (Join-Path $logDir 'server.pid')
-    Write-Output "http://127.0.0.1:$Port (PID $($process.Id))"
+    $supervisorFile = Join-Path $project 'serve_forever.py'
+    $supervisorPid = Join-Path $logDir 'supervisor.pid'
+    if (Test-Path -LiteralPath $supervisorPid) {
+        $existingId = [int](Get-Content -LiteralPath $supervisorPid)
+        $existing = Get-CimInstance Win32_Process -Filter "ProcessId = $existingId"
+        if ($existing -and $existing.CommandLine.Contains($supervisorFile)) {
+            $activePort = Get-Content -LiteralPath (Join-Path $logDir 'server.port')
+            Write-Output "Da chay: http://127.0.0.1:$activePort"
+            return
+        }
+    }
+    $process = Start-Process -FilePath $interpreter -ArgumentList @(('"' + $supervisorFile + '"'), '--port', "$Port") -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'supervisor.log') -RedirectStandardError (Join-Path $logDir 'supervisor-error.log') -PassThru
+    Write-Output "http://127.0.0.1:$Port (supervisor PID $($process.Id))"
 } else {
-    & $interpreter -m streamlit run $appFile --server.address 127.0.0.1 --server.port $Port --browser.gatherUsageStats false
+    & $interpreter -m streamlit run $appFile --server.address 127.0.0.1 --server.port $Port --browser.gatherUsageStats false --server.disconnectedSessionTTL 0
 }

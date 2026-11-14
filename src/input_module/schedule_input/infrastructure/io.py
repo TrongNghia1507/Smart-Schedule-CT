@@ -4,11 +4,44 @@ from datetime import datetime,date
 from ..application.mapper import TaskFactory
 from ..domain.models import *
 
-FIELDS={True:['name','repeat','start','end','is_flexible','min_duration_min','one_off_date'],False:['name','kind','importance','deadline','remaining_min','focus','buffer_min','earliest_start','chunk_min','chunk_max']}
+FIELDS={True:['name','repeat','start','end','is_flexible','min_duration_min','one_off_date','prep_min','after_min'],False:['name','kind','importance','deadline','remaining_min','focus','buffer_min','earliest_start','chunk_min','chunk_max']}
 ALIASES={'Tên':'name','Tên công việc (name)':'name','Loại (kind)':'kind','Quan trọng (is_important)':'importance','Hạn chót (deadline)':'deadline','Thời lượng (remaining_min)':'remaining_min','Tập trung (focus)':'focus','Buffer 15p':'buffer_min','Bắt đầu sớm nhất (earliest_start)':'earliest_start','Chunk min':'chunk_min','Chunk max':'chunk_max','Lặp lại':'repeat','Giờ bắt đầu':'start','Giờ kết thúc':'end','Có thể chia ko (OPTIONAL)':'is_flexible','Thời gian co dãn tối thiểu (OPTIONAL)':'min_duration_min'}
+COMBINED_FIELDS=['task_type',*dict.fromkeys(FIELDS[True]+FIELDS[False])]
 def norm(s):return ' '.join(s.strip().casefold().split())
 class CsvXlsxGateway:
     # XLSX is intentionally a deferred Could feature; CSV is the supported gateway.
+    def read_mixed_rows(self,content):
+        mapping={norm(x):x for x in COMBINED_FIELDS}
+        mapping.update({norm(k):v for k,v in ALIASES.items()})
+        reader=csv.DictReader(io.StringIO(content.decode('utf-8-sig')))
+        headers=reader.fieldnames or []
+        canonical=[mapping.get(norm(h),norm(h)) for h in headers]
+        if 'task_type' not in canonical or 'name' not in canonical:
+            raise ValueError('CSV phải có cột task_type và name, phân tách bằng dấu phẩy.')
+        if len(set(canonical))!=len(canonical):
+            raise ValueError('CSV có tên cột trùng nhau.')
+        rows=[];notes=[h for h in headers if norm(h) not in mapping]
+        for i,row in enumerate(reader,2):
+            if None in row:
+                raise ValueError(f'Dòng {i}: thừa ô; đặt ô chứa dấu phẩy trong dấu nháy kép.')
+            if not any((v or '').strip() for v in row.values()):continue
+            out={mapping[norm(k)]:(v or '').strip() for k,v in row.items() if norm(k) in mapping}
+            out['task_type']=out['task_type'].casefold()
+            if 'buffer_min' in out and norm(out['buffer_min']) in ('có','không'):
+                out['buffer_min']='15' if norm(out['buffer_min'])=='có' else '0'
+            rows.append((i,out))
+        return rows,notes
+
+    def write_mixed_rows(self,data):
+        stream=io.StringIO(newline='')
+        writer=csv.DictWriter(stream,fieldnames=COMBINED_FIELDS)
+        writer.writeheader()
+        for fixed in (True,False):
+            # Reuse the same date/time formatting as the individual table export.
+            rows=csv.DictReader(io.StringIO(self.write_rows(data,fixed).decode('utf-8-sig')))
+            for row in rows:writer.writerow(dict(task_type='fixed' if fixed else 'deadline',**row))
+        return stream.getvalue().encode('utf-8-sig')
+
     def read_rows(self,content,fixed):
         mapping={norm(x):x for x in FIELDS[fixed]};mapping.update({norm(k):v for k,v in ALIASES.items()})
         rows=[];notes=[]
