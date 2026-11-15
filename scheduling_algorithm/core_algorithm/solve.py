@@ -1,11 +1,7 @@
 from __future__ import annotations
 from ortools.sat.python import cp_model
 from .models import Task, Config, FixedTask, SolveResult
-from .context import Chunk, Ctx
-from .criteria import CRITERIA
-
-SCALE = 10**7
-DEFAULT_OBJECTIVE = {"max_priority": 1}
+from .context import Chunk
 
 def add_fixed(model, fixed: list[FixedTask], cfg: Config) -> list:
     intervals = []
@@ -63,10 +59,7 @@ def build_task(model, t: Task, cfg: Config, present):
 
     model.Add(sum(c.length for c in chunks) == dur).OnlyEnforceIf(present)
 
-    finish = model.NewIntVar(0, horizon, f"finish_{t.id}")
-    model.AddMaxEquality(finish, [c.end for c in chunks])
-
-    return chunks, finish
+    return chunks
 
 
 def add_daily_caps(model, tasks: list[Task], chunks: dict[str, list[Chunk]], cfg: Config):
@@ -101,37 +94,13 @@ def add_daily_caps(model, tasks: list[Task], chunks: dict[str, list[Chunk]], cfg
             model.Add(sum(high_load[day]) <= cfg.to_slot(cfg.high_cap))
 
 
-def build_objective(model, ctx: Ctx) -> dict:
-    weights = {
-        name: weight
-        for name, weight in (ctx.cfg.objective or {}).items()
-        if weight > 0
-    } or DEFAULT_OBJECTIVE
-
-    terms = []
-    scores = {}
-    total_bound = 0
-    for name, weight in weights.items():
-        score, bound = CRITERIA[name](ctx)
-        bound = max(bound, 1)
-        coef = weight * max(1, SCALE // bound)
-        terms.append(coef * score)
-        total_bound += coef * bound
-        scores[name] = (score, bound)
-
-    # One more scheduled hard task outweighs every configured score combined.
-    hard_count = sum(ctx.present[t.id] for t in ctx.tasks if t.kind == "hard")
-    model.Maximize((total_bound + 1) * hard_count + sum(terms))
-    return scores
-
-
 def solve(tasks: list[Task], fixed: list[FixedTask], cfg: Config) -> SolveResult:
     model = cp_model.CpModel()
 
-    present, chunks, finish = {}, {}, {}
+    present, chunks = {}, {}
     for t in tasks:
         present[t.id] = model.NewBoolVar(f"present_{t.id}")
-        chunks[t.id], finish[t.id] = build_task(model, t, cfg, present[t.id])
+        chunks[t.id] = build_task(model, t, cfg, present[t.id])
 
     add_daily_caps(model, tasks, chunks, cfg)
     intervals = add_fixed(model, fixed, cfg)
@@ -194,8 +163,7 @@ def solve(tasks: list[Task], fixed: list[FixedTask], cfg: Config) -> SolveResult
             )
     model.AddNoOverlap(task_intervals)
 
-    ctx = Ctx(tasks, cfg, present, chunks, finish)
-    build_objective(model, ctx)
+    model.Maximize(sum(task.priority * present[task.id] for task in tasks))
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = cfg.time_limit

@@ -11,7 +11,6 @@ class Config:
     num_days: int = 7
     time_limit: float = 10.0
     slot_minutes: int = 5
-    objective: dict[str, int] = field(default_factory=dict)
     break_minutes: int = 10
     now: int = 0
     daily_cap: int | None = None

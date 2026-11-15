@@ -20,7 +20,6 @@ def parse_config(raw: dict, *, now: int = 0) -> Config:
         num_days=7,
         time_limit=raw.get("time_limit", 10.0),
         slot_minutes=raw.get("step", 5),
-        objective=raw.get("objective", {}),
         break_minutes=raw.get("break_minutes", 10),
         now=now,
         daily_cap=raw.get("daily_cap"),
