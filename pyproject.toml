@@ -12,7 +12,13 @@ dependencies = [
     "uvicorn[standard]>=0.30,<1",
     "pydantic-settings>=2.6,<3",
     "httpx>=0.27,<1",
+    "ortools>=9.11,<10",
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = [
+    "conflict_resolver*",
+    "mvp*",
+    "scheduling_algorithm*",
+]

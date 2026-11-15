@@ -1,0 +1,228 @@
+import asyncio
+import json
+
+import streamlit as st
+from .presentation import describe_changes
+
+from .ai.advisor import get_settings
+from .models import Policy
+from .planning import (
+    PlanningSession,
+    context_from_snapshot,
+)
+
+
+def clock(value):
+    day, minute = divmod(value, 1440)
+
+    return (
+        f"Ngày {day + 1} "
+        f"{minute // 60:02}:{minute % 60:02}"
+    )
+
+
+def render(snapshot):
+    token = snapshot.to_json()
+
+    st.subheader("Xếp lịch và xử lý conflict")
+
+    earlier = st.number_input(
+        "Cho phép thức dậy sớm hơn (phút)",
+        min_value=0,
+        max_value=60,
+        value=0,
+    )
+
+    later = st.number_input(
+        "Cho phép ngủ muộn hơn (phút)",
+        min_value=0,
+        max_value=60,
+        value=0,
+    )
+
+    if st.button("Chạy thuật toán xếp lịch"):
+        try:
+            policy = Policy(
+                max_earlier_minutes=earlier,
+                max_later_minutes=later,
+            )
+
+            context = context_from_snapshot(
+                snapshot,
+                policy,
+            )
+
+            st.session_state.planning = PlanningSession(
+                context
+            )
+
+            st.session_state.planning_snapshot = token
+
+        except ValueError as exc:
+            st.error(str(exc))
+
+    session = st.session_state.get("planning")
+
+    if session is None:
+        return
+
+    if st.session_state.get("planning_snapshot") != token:
+        return
+
+    result = session.plan()
+
+    names = {
+        task.id: task.name
+        for task in session.context.tasks
+    }
+
+    rows = [
+        {
+            "Task": names[chunk.task_id],
+            "Bắt đầu": clock(chunk.start),
+            "Kết thúc": clock(chunk.end),
+        }
+        for chunk in result.chunks
+    ]
+
+    rows += [
+        {
+            "Task": fixed.name + " (cố định)",
+            "Bắt đầu": clock(fixed.interval.start),
+            "Kết thúc": clock(fixed.interval.end),
+        }
+        for fixed in session.context.fixed_tasks
+    ]
+
+    st.dataframe(rows)
+
+    if result.unscheduled:
+        target_id = st.selectbox(
+            "Task chưa xếp được",
+            options=list(result.unscheduled),
+            format_func=lambda task_id: names[task_id],
+        )
+
+        if st.button("Phân tích 4 lựa chọn"):
+            with st.spinner(
+                "Đang kiểm chứng phương án..."
+            ):
+                asyncio.run(
+                    session.analyze(
+                        target_id,
+                        get_settings(),
+                    )
+                )
+
+        if target_id in session.reports:
+            report, _ = session.reports[target_id]
+            st.caption(f"Trạng thái AI: {report.ai_status}")
+
+            for option in report.options:
+                titles = {
+                    1: "Bỏ task khỏi tuần",
+                    2: "Giảm thời lượng task",
+                    3: "Dời deadline",
+                    4: "Nới ràng buộc",
+                }
+
+                st.markdown(
+                    f"### Lựa chọn {option.option_id}: "
+                    f"{titles[option.option_id]}"
+                )
+
+                week_start = snapshot.to_dict()[
+                    "window"
+                ]["week_start"]
+
+                if option.is_available:
+                    st.markdown(
+                        "**Phương án đề xuất đã được kiểm chứng:**"
+                    )
+                else:
+                    st.markdown("**Tình trạng phương án:**")
+
+                descriptions = describe_changes(
+                    option,
+                    session.context,
+                    week_start,
+                )
+
+                for description in descriptions:
+                    st.write("• " + description)
+
+                if report.ai_status == "SUCCESS":
+                    st.markdown(
+                        "**AI giải thích và đánh giá:**"
+                    )
+                    st.write(option.ai_description)
+                else:
+                    st.caption(
+                        "Chưa có nhận xét AI hợp lệ; "
+                        "đang hiển thị mô tả từ engine."
+                    )
+
+                for warning in option.warnings:
+                    st.caption(warning)
+
+                duration = None
+
+                if (
+                    option.option_id == 2
+                    and option.is_available
+                ):
+                    task = next(
+                        task
+                        for task in session.context.tasks
+                        if task.id == target_id
+                    )
+
+                    maximum = option.action_payload[
+                        "new_duration"
+                    ]
+
+                    duration = st.number_input(
+                        "Thời lượng mới (phút)",
+                        min_value=task.min_remaining_min,
+                        max_value=maximum,
+                        value=maximum,
+                        key=f"duration_{target_id}",
+                    )
+
+                if st.button(
+                    f"Áp dụng option {option.option_id}",
+                    disabled=not option.is_available,
+                ):
+                    try:
+                        session.apply(
+                            target_id,
+                            option.option_id,
+                            report.schedule_version,
+                            duration,
+                        )
+
+                        st.rerun()
+
+                    except ValueError as exc:
+                        st.error(str(exc))
+
+    else:
+        st.success(
+            "Đã xếp đầy đủ các task còn giữ."
+        )
+
+    export_data = {
+        "context": session.context.model_dump(),
+        "result": result.model_dump(),
+    }
+
+    st.download_button(
+        "Lưu lịch và trạng thái JSON",
+        data=json.dumps(
+            export_data,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        file_name="schedule.json",
+        mime="application/json",
+    )

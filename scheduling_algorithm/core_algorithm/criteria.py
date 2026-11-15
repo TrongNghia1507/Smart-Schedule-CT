@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Callable
-from context import Ctx
+from .context import Ctx
 
 CRITERIA: dict[str, Callable[[Ctx], tuple]] = {}
 

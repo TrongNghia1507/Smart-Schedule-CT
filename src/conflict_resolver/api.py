@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from .ai.advisor import get_settings
 from .models import ConflictContext, ConflictReport
 from .resolver import resolve
-from .scheduler import ReferenceScheduler
+from .scheduler import CoreScheduler
 
 
 app = FastAPI(
@@ -11,7 +11,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-scheduler = ReferenceScheduler()
+scheduler = CoreScheduler()
 
 
 @app.get("/health")

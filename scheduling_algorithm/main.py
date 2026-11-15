@@ -3,9 +3,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from models import Config, FixedTask, SolveResult, Task
-from parseInput import parse_input
-from parseOutput import parse_output
+from scheduling_algorithm.core_algorithm.models import (
+    Config,
+    FixedTask,
+    SolveResult,
+    Task,
+)
+from scheduling_algorithm.core_algorithm.parseInput import parse_input
+from scheduling_algorithm.parseOutput import parse_output
 
 
 def print_table(headers, rows):
@@ -108,7 +113,7 @@ def main() -> int:
     if input_path.resolve() == output_path.resolve():
         parser.error("File output phai khac file input.")
 
-    from solve import solve
+    from scheduling_algorithm.core_algorithm.solve import solve
 
     tasks, cfg, fixed = parse_input(str(input_path))
     result = solve(tasks, fixed, cfg)

@@ -1,4 +1,5 @@
 from ..models import WEEK
+from ..scheduler import free_slots
 
 
 def exclude_candidates(context, target):
@@ -6,8 +7,10 @@ def exclude_candidates(context, target):
         return
 
     candidate = context.model_copy(deep=True)
+
     candidate.tasks = [
-        task for task in candidate.tasks
+        task
+        for task in candidate.tasks
         if task.id != target.id
     ]
 
@@ -17,35 +20,47 @@ def exclude_candidates(context, target):
             "operation": "EXCLUDE_FROM_WEEK",
             "task_id": target.id,
         },
-        f"Bỏ task {target.id} khỏi kế hoạch tuần hiện tại.",
-        ["Task vẫn được lưu và chưa được xem là hoàn thành."],
+        f"Bỏ {target.name} khỏi lịch tuần.",
+        ["Chưa đánh dấu task là hoàn thành."],
     )
 
 
 def compress_candidates(context, target):
+    """Dự phòng cho ReferenceScheduler.
+
+    Luồng CoreScheduler dùng phép tối ưu trực tiếp
+    trong optimized_compression của resolver.py.
+    """
     if not target.allow_compress:
         return
 
-    step = context.policy.compression_step_minutes
-
-    values = list(
-        range(
-            target.remaining_min - step,
-            target.min_remaining_min - 1,
-            -step,
+    capacity = sum(
+        max(
+            0,
+            min(end, target.deadline)
+            - max(start, target.earliest_start),
         )
+        for start, end in free_slots(context)
     )
 
-    if target.min_remaining_min < target.remaining_min:
-        values.append(target.min_remaining_min)
+    upper = min(
+        target.remaining_min - 1,
+        capacity,
+    )
 
-    for duration in dict.fromkeys(values):
+    for duration in range(
+        upper,
+        target.min_remaining_min - 1,
+        -1,
+    ):
         candidate = context.model_copy(deep=True)
 
         task = next(
-            task for task in candidate.tasks
+            task
+            for task in candidate.tasks
             if task.id == target.id
         )
+
         task.remaining_min = duration
 
         yield (
@@ -60,189 +75,225 @@ def compress_candidates(context, target):
                 ),
             },
             (
-                f"Giảm thời lượng task {target.id} từ "
-                f"{target.remaining_min} xuống {duration} phút."
+                f"Giảm {target.name}: "
+                f"{target.remaining_min} → {duration} phút."
             ),
             [
-                "Giảm thời lượng không bảo đảm hoàn thành "
-                "đủ phạm vi công việc ban đầu."
+                "Giảm thời lượng có thể làm giảm "
+                "phạm vi công việc."
             ],
         )
 
 
 def postpone_candidates(context, target):
-    if target.kind == "soft":
-        movable = [target]
-    else:
-        movable = sorted(
-            (
-                task for task in context.tasks
-                if task.id != target.id
-                and task.kind == "soft"
-                and task.importance < target.importance
-            ),
-            key=lambda task: (task.importance, task.id),
+    # Chỉ dời deadline của chính soft task đang xử lý.
+    if target.kind != "soft":
+        return
+
+    if target.max_postpone_minutes <= 0:
+        return
+
+    latest = min(
+        WEEK,
+        target.deadline + target.max_postpone_minutes,
+    )
+
+    slots = free_slots(context)
+
+    for deadline in range(
+        target.deadline + 1,
+        latest + 1,
+    ):
+        # Chỉ là kiểm tra điều kiện cần.
+        # Chunk, buffer và task cạnh tranh vẫn do core kiểm tra.
+        capacity = sum(
+            max(
+                0,
+                min(end, deadline)
+                - max(start, target.earliest_start),
+            )
+            for start, end in slots
         )
 
-    for original in movable:
-        if original.max_postpone_minutes <= 0:
+        if capacity < target.remaining_min:
             continue
 
-        latest = min(
-            WEEK,
-            original.deadline + original.max_postpone_minutes,
+        candidate = context.model_copy(deep=True)
+
+        task = next(
+            task
+            for task in candidate.tasks
+            if task.id == target.id
         )
 
-        deadlines = list(
-            range(original.deadline + 1440, latest + 1, 1440)
+        task.deadline = deadline
+
+        yield (
+            candidate,
+            {
+                "operation": "POSTPONE_TASK",
+                "task_id": target.id,
+                "old_deadline": target.deadline,
+                "new_deadline": deadline,
+            },
+            (
+                f"Dời deadline {target.name} "
+                f"đến phút {deadline} của tuần."
+            ),
+            [
+                "Chỉ tìm trong tuần hiện tại; "
+                "không tự dời hard/asap."
+            ],
         )
-
-        if latest > original.deadline:
-            deadlines.append(latest)
-
-        for deadline in sorted(set(deadlines)):
-            candidate = context.model_copy(deep=True)
-
-            task = next(
-                task for task in candidate.tasks
-                if task.id == original.id
-            )
-            task.deadline = deadline
-
-            yield (
-                candidate,
-                {
-                    "operation": "POSTPONE_TASK",
-                    "task_id": original.id,
-                    "old_deadline": original.deadline,
-                    "new_deadline": deadline,
-                },
-                (
-                    f"Dời deadline task {original.id} từ phút "
-                    f"{original.deadline} sang phút {deadline} của tuần."
-                ),
-                ["Phương án chỉ được kiểm chứng trong tuần hiện tại."],
-            )
 
 
 def relax_candidates(context, target):
-    eligible = [
-        fixed for fixed in context.fixed_tasks
-        if fixed.can_shorten
-        and fixed.importance < target.importance
-        and fixed.interval.start >= context.now_minute
-        and fixed.interval.start < target.deadline
-        and fixed.interval.end - fixed.interval.start > fixed.min_duration
-    ]
+    candidate = context.model_copy(deep=True)
+    changes = []
 
-    fixed_groups = [[fixed] for fixed in eligible]
+    eligible = sorted(
+        (
+            fixed
+            for fixed in candidate.fixed_tasks
+            if fixed.can_shorten
+            and fixed.interval.start >= context.now_minute
+            and fixed.interval.start < target.deadline
+            and fixed.interval.end > target.earliest_start
+            and (
+                fixed.interval.end - fixed.interval.start
+                > fixed.min_duration
+            )
+        ),
+        key=lambda fixed: (
+            -fixed.interval.start,
+            fixed.id,
+        ),
+    )
 
-    if len(eligible) > 1:
-        fixed_groups.append(eligible)
-
-    # None: thử không mở rộng khung giờ.
-    expansions = [None]
-
-    for index, window in enumerate(context.active_windows):
-        if (
-            window.start >= target.deadline
-            or window.end <= context.now_minute
-        ):
-            continue
-
-        day_start = (window.start // 1440) * 1440
-        day_end = ((window.end - 1) // 1440 + 1) * 1440
-
-        previous_end = max(
+    def proposal():
+        return (
+            candidate.model_copy(deep=True),
+            {
+                "changes": [
+                    dict(change)
+                    for change in changes
+                ]
+            },
             (
-                item.end for item in context.active_windows
-                if item.end <= window.start
+                "Rút fixed về min_duration trước, "
+                "rồi mở giờ thức từ ngày deadline lùi dần."
             ),
-            default=0,
+            [
+                "Cần người dùng chọn trước khi "
+                "đổi giờ sinh hoạt."
+            ],
         )
-        next_start = min(
-            (
-                item.start for item in context.active_windows
-                if item.start >= window.end
+
+    # Giai đoạn 1: rút fixed, thay đổi được cộng dồn.
+    for fixed in eligible:
+        old_end = fixed.interval.end
+
+        fixed.interval.end = (
+            fixed.interval.start
+            + fixed.min_duration
+        )
+
+        changes.append(
+            {
+                "operation": "SHORTEN_FIXED",
+                "task_id": fixed.id,
+                "old_end": old_end,
+                "new_end": fixed.interval.end,
+            }
+        )
+
+        yield proposal()
+
+    # Deadline đúng 00:00 thuộc ngày trước đó.
+    deadline_day = (target.deadline - 1) // 1440
+
+    # Giai đoạn 2: nới giờ thức cộng dồn từng ngày.
+    for day in range(deadline_day, -1, -1):
+        indices = sorted(
+            range(len(candidate.active_windows)),
+            key=lambda index: (
+                candidate.active_windows[index].start
             ),
-            default=WEEK,
         )
 
-        start = max(
-            day_start,
-            previous_end,
-            context.now_minute,
-            window.start - context.policy.max_earlier_minutes,
-        )
-        start = min(start, window.start)
+        for index in indices:
+            window = candidate.active_windows[index]
 
-        end = min(
-            day_end,
-            next_start,
-            window.end + context.policy.max_later_minutes,
-        )
-
-        if start != window.start or end != window.end:
-            expansions.append((index, start, end))
-
-    # Thử từng nhóm fixed, mở rộng giờ, và kết hợp cả hai.
-    for group in [[], *fixed_groups]:
-        for expansion in expansions:
-            if not group and expansion is None:
+            if window.start // 1440 != day:
                 continue
 
-            candidate = context.model_copy(deep=True)
-            changes = []
-            descriptions = []
+            if window.end <= context.now_minute:
+                continue
 
-            for original in group:
-                fixed = next(
-                    item for item in candidate.fixed_tasks
-                    if item.id == original.id
-                )
+            previous_end = max(
+                (
+                    item.end
+                    for other_index, item
+                    in enumerate(candidate.active_windows)
+                    if other_index != index
+                    and item.end <= window.start
+                ),
+                default=0,
+            )
 
-                old_end = fixed.interval.end
-                fixed.interval.end = (
-                    fixed.interval.start + fixed.min_duration
-                )
+            next_start = min(
+                (
+                    item.start
+                    for other_index, item
+                    in enumerate(candidate.active_windows)
+                    if other_index != index
+                    and item.start >= window.end
+                ),
+                default=WEEK,
+            )
 
-                reduced = old_end - fixed.interval.end
+            start = max(
+                day * 1440,
+                previous_end,
+                context.now_minute,
+                (
+                    window.start
+                    - context.policy.max_earlier_minutes
+                ),
+            )
 
-                changes.append({
-                    "operation": "SHORTEN_FIXED",
-                    "task_id": fixed.id,
-                    "old_end": old_end,
-                    "new_end": fixed.interval.end,
-                })
+            start = min(start, window.start)
 
-                descriptions.append(
-                    f"Rút ngắn fixed task {fixed.id} {reduced} phút."
-                )
+            end = min(
+                (day + 1) * 1440,
+                next_start,
+                (
+                    window.end
+                    + context.policy.max_later_minutes
+                ),
+            )
 
-            if expansion is not None:
-                index, start, end = expansion
-                window = candidate.active_windows[index]
-                window.start = start
-                window.end = end
+            if (start, end) == (
+                window.start,
+                window.end,
+            ):
+                continue
 
-                changes.append({
+            window.start = start
+            window.end = end
+
+            changes.append(
+                {
                     "operation": "EXPAND_ACTIVE_WINDOW",
                     "window_index": index,
                     "new_start": start,
                     "new_end": end,
-                })
-
-                descriptions.append(
-                    f"Đổi khung hoạt động số {index} "
-                    f"thành [{start}, {end})."
-                )
-
-            yield (
-                candidate,
-                {"changes": changes},
-                " ".join(descriptions),
-                [
-                    "Chỉ áp dụng sau khi người dùng xác nhận "
-                    "các thay đổi sinh hoạt."
-                ],
+                }
             )
+
+        if (
+            changes
+            and changes[-1]["operation"]
+            == "EXPAND_ACTIVE_WINDOW"
+        ):
+            yield proposal()

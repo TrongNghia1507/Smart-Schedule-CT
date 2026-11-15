@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from models import Config, SolveResult, Task
+from .core_algorithm.models import Config, SolveResult, Task
 
 
 def parse_output(result: SolveResult, cfg: Config, tasks: list[Task]) -> str:

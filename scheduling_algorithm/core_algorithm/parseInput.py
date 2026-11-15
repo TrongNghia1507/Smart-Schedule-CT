@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from models import Config, Task, FixedTask, MINUTES_PER_DAY
+from .models import Config, Task, FixedTask, MINUTES_PER_DAY
 
 DEFAULT_MIN_CHUNK = 30
 

@@ -48,6 +48,9 @@ class Task:
     min_chunk: int = 0
     max_chunk: int = 0
 
+    earliest_start: int = 0
+    buffer_min: int = 0
+
 @dataclass
 class FixedTask:
     name: str

@@ -16,9 +16,83 @@ STRATEGIES = [
 ]
 
 
+def optimized_compression(context, target, scheduler):
+    if not target.allow_compress:
+        return
+
+    if target.remaining_min <= target.min_remaining_min:
+        return
+
+    from .scheduler import CoreScheduler
+
+    engine = CoreScheduler(
+        time_limit=scheduler.time_limit
+    )
+
+    result = engine.plan(
+        context,
+        compress_id=target.id,
+        compression_min=target.min_remaining_min,
+    )
+
+    if result.status != "FEASIBLE":
+        return
+
+    duration = sum(
+        chunk.end - chunk.start
+        for chunk in result.chunks
+        if chunk.task_id == target.id
+    )
+
+    candidate = context.model_copy(deep=True)
+
+    task = next(
+        task
+        for task in candidate.tasks
+        if task.id == target.id
+    )
+
+    task.remaining_min = duration
+
+    maximum_proven = engine.last_status == "OPTIMAL"
+
+    description = (
+        f"Giảm {target.name}: "
+        f"{target.remaining_min} → {duration} phút. "
+    )
+
+    if maximum_proven:
+        description += "Đây là mức tối đa đã chứng minh."
+    else:
+        description += (
+            "Đây là mức khả thi; hết thời gian "
+            "trước khi chứng minh tối đa."
+        )
+
+    yield (
+        candidate,
+        {
+            "operation": "COMPRESS_TASK",
+            "task_id": target.id,
+            "old_duration": target.remaining_min,
+            "new_duration": duration,
+            "duration_reduced_minutes": (
+                target.remaining_min - duration
+            ),
+            "maximum_proven": maximum_proven,
+        },
+        description,
+        [
+            "Giảm thời lượng có thể làm giảm "
+            "phạm vi công việc."
+        ],
+    )
+
+
 async def resolve(context, scheduler, settings):
     target = next(
-        task for task in context.tasks
+        task
+        for task in context.tasks
         if task.id == context.target_task_id
     )
 
@@ -46,34 +120,62 @@ async def resolve(context, scheduler, settings):
                 "trong phạm vi tìm kiếm hiện tại."
             ),
             factual_description=(
-                "Không có phương án đã được engine kiểm chứng."
+                "Không có phương án đã được "
+                "engine kiểm chứng."
             ),
         )
 
-        for index, candidate_data in enumerate(generator(context, target)):
-            # Giới hạn số lần gọi engine cho mỗi nhóm.
-            if index >= 120:
-                break
+        candidates = generator(context, target)
 
-            candidate, payload, description, warnings = candidate_data
+        if (
+            option_id == 2
+            and scheduler.name == "core-cp-sat"
+        ):
+            candidates = optimized_compression(
+                context,
+                target,
+                scheduler,
+            )
+
+        for candidate_data in candidates:
+            (
+                candidate,
+                payload,
+                description,
+                warnings,
+            ) = candidate_data
 
             if candidate.tasks:
-                result = scheduler.plan(candidate)
+                if (
+                    option_id == 2
+                    and scheduler.name == "core-cp-sat"
+                ):
+                    from .scheduler import CoreScheduler
 
-                # Kiểm chứng TOÀN BỘ công việc còn giữ.
+                    engine = CoreScheduler(
+                        backward=True,
+                        time_limit=scheduler.time_limit,
+                    )
+
+                    result = engine.plan(candidate)
+                else:
+                    result = scheduler.plan(candidate)
+
+                # Toàn bộ task được giữ phải xếp đủ.
                 if result.status != "FEASIBLE":
                     continue
 
                 preview = result.chunks
+
             else:
                 preview = []
 
             option.is_available = True
             option.unavailable_reason = None
-
             option.action_payload = payload
             option.factual_description = description
             option.preview = preview
+
             option.warnings = [
                 *warnings,
                 (
@@ -82,7 +184,6 @@ async def resolve(context, scheduler, settings):
                 ),
             ]
 
-            # Chọn ứng viên khả thi đầu tiên của nhóm.
             break
 
         options.append(option)
@@ -99,7 +200,9 @@ async def resolve(context, scheduler, settings):
         conflict_id=context.conflict_id,
         schedule_version=context.schedule_version,
         status="CONFLICT",
-        deficit_minutes=sum(baseline.unscheduled.values()),
+        deficit_minutes=sum(
+            baseline.unscheduled.values()
+        ),
         ai_status=ai_status,
         verification_engine=scheduler.name,
         options=options,

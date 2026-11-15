@@ -163,9 +163,19 @@ def preview_panel():
             st.html('<div class="legend"><span class="swatch"></span>'+tr('Việc cố định (tên + giờ)')+'</div><div class="legend"><span class="swatch sleep"></span>'+tr('Giờ ngủ')+' '+hh(s.data.window.sleep.start)+'–'+hh(s.data.window.sleep.end)+'</div><div class="legend"><span class="swatch line"></span>'+tr('Thời gian hiện tại')+'</div><div class="legend">'+tr('↔ Có thể chia nhỏ / co dãn')+'</div>')
             st.caption(tr('Bấm vào một việc để sửa nhanh. Việc có deadline chưa được xếp nên chưa hiện ở đây.'))
         if st.button(tr('← Quay lại nhập'),use_container_width=True):st.session_state.page='input';refresh()
-        if st.button(tr('Đúng rồi, tiếp tục'),key='confirm_snapshot',type='primary',disabled=report.has_errors(),use_container_width=True):
-            try:st.session_state.snapshot=s.confirm();st.success(tr('Đã tạo InputSnapshot, sẵn sàng cho Ranking.'))
-            except ValueError as ex:st.error(tr(str(ex)))
+        if st.button(
+            tr("Đúng rồi, tiếp tục"),
+            key="confirm_snapshot",
+            type="primary",
+            disabled=report.has_errors(),
+            use_container_width=True,
+        ):
+            try:
+                st.session_state.snapshot = s.confirm()
+            except ValueError as ex:
+                st.error(tr(str(ex)))
+            else:
+                st.rerun(scope="app")
         if st.session_state.get('snapshot'):st.download_button(tr('Xuất snapshot JSON để debug'),st.session_state.snapshot.to_json(),'input_snapshot.json',mime='application/json')
         if report.issues:
             with st.expander(tr('Chi tiết kiểm tra')):report_ui(report)
@@ -279,3 +289,8 @@ else:
     preview_panel()
 
 if st.session_state.page=='input' and st.session_state.get('edit_request'):editor(*st.session_state.edit_request)
+
+if st.session_state.get("snapshot"):
+    from conflict_resolver.ui import render as render_planning
+
+    render_planning(st.session_state.snapshot)
