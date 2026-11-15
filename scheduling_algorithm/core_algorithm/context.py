@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from ortools.sat.python import cp_model
-from models import Task, Config
+from .models import Task, Config
 
 
 @dataclass

@@ -11,8 +11,10 @@ class Config:
     num_days: int = 7
     time_limit: float = 10.0
     slot_minutes: int = 5
-    objective: dict[str, int] = field(default_factory=dict)
     break_minutes: int = 10
+    now: int = 0
+    daily_cap: int | None = None
+    high_cap: int | None = None
 
     @property
     def window(self) -> int:
@@ -39,19 +41,24 @@ class Config:
 
 @dataclass
 class Task:
-    id: int
+    id: str
     name: str
     duration: int
     priority: int = 1
     deadline: int | None = None
+    earliest_start: int = 0
     splittable: bool = False
     min_chunk: int = 0
     max_chunk: int = 0
+    break_minutes: int = 10
+    buffer_minutes: int = 0
+    kind: str = "soft"
+    focus: str = "low"
 
 @dataclass
 class FixedTask:
+    id: str
     name: str
-    day: int
     start: int
     end: int
 
@@ -59,5 +66,5 @@ class FixedTask:
 class SolveResult:
     status: str
     objective: float | None = None
-    chunks: dict[int, list[tuple[int, int]]] = field(default_factory=dict)
+    chunks: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
     solve_time: float = 0.0
