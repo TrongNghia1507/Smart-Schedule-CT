@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-IMPORTANCE_UI_TO_ENGINE = {1: 3, 2: 6, 3: 9}          # UI 1..3  ->  engine 1..10
+IMPORTANCE_UI_TO_ENGINE = {1: 2, 2: 4, 3: 6, 4: 8, 5: 10}   # UI 1..5  ->  engine 1..10
 FIXED_TYPES = {"study", "meal", "leisure", "other"}   # "sleep" chỉ đến từ window.sleep, không từ hàng việc
 STEP = 5
 

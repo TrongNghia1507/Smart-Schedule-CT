@@ -4,6 +4,8 @@ from streamlit.testing.v1 import AppTest
 def test_initial_page():
     app=AppTest.from_file(str(Path(__file__).parents[1]/'app.py'),default_timeout=30).run()
     assert not app.exception
+    labels=[field.label for field in app.text_input]
+    assert 'Giờ ngủ' in labels and 'Giờ thức dậy' in labels
 
 def test_sample_preview_and_snapshot(tmp_path):
     from schedule_input.infrastructure.repositories import JsonFileRepository
@@ -30,7 +32,9 @@ def test_simplified_ui():
     next(b for b in app.button if b.label=='Hủy').click().run()
     app.button(key='add_False').click().run()
     assert not app.exception
-    assert app.select_slider[0].options==['1','2','3']
+    assert app.select_slider[0].options==['1','2','3','4','5']
+    kind=next(field for field in app.selectbox if field.label=='Loại')
+    assert kind.options==['ASAP','Hard','Soft']
 
 def test_theme_survives_navigation():
     app=AppTest.from_file(str(Path(__file__).parents[1]/'app.py'),default_timeout=30).run()

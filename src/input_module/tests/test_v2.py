@@ -9,10 +9,10 @@ from schedule_input.domain.validation import ValidationService
 def test_importance_limits():
     task=SampleDataProvider().load().deadline_tasks[0]
     row=TaskFactory.to_row_view(task)
-    for n in (0,4,10):
+    for n in (0,6,10):
         _,report=TaskFactory.from_raw(dict(row,importance=n))
         assert report.has_errors()
-    for n in (1,2,3):
+    for n in (1,2,3,4,5):
         _,report=TaskFactory.from_raw(dict(row,importance=n))
         assert not report.has_errors()
 
@@ -22,6 +22,20 @@ def test_demo_real_time():
     assert all(t.deadline>datetime.now() for t in data.deadline_tasks)
     assert not ValidationService().validate_all(data).has_errors()
     assert b'is_sleep' not in CsvXlsxGateway().write_rows(data,True)
+
+def test_five_level_importance_roundtrip(tmp_path):
+    from dataclasses import replace
+    from schedule_input.application.preview import SnapshotBuilder
+    data=SampleDataProvider().demo()
+    for level,task in zip((4,5),data.deadline_tasks):
+        data._tasks[task.id]=replace(task,importance=level)
+    repo=JsonFileRepository(tmp_path/'draft.json')
+    repo.save(data,None)
+    loaded,_,notes=repo.load(data)
+    assert not notes
+    assert [t.importance for t in loaded.deadline_tasks][:2]==[4,5]
+    snapshot=SnapshotBuilder().build(loaded).to_dict()
+    assert [t['importance'] for t in snapshot['deadline_tasks']][:2]==[4,5]
 
 def test_repeated_calendar_events_keep_unique_ids():
     from schedule_input.application.preview import PreviewService

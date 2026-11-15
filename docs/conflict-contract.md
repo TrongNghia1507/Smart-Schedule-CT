@@ -4,7 +4,7 @@
 
 - Các mốc thời gian là phút nguyên từ đầu tuần.
 - Caller chịu trách nhiệm chuyển timezone và bung fixed task lặp.
-- importance: 1–3.
+- importance: 1–5.
 - remaining_min: phần công việc chưa thực hiện.
 - active_windows: các khoảng hoạt động không chồng lấn.
 - Fixed task và các khoảng khóa phải được validator chung kiểm tra trước.

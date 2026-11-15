@@ -30,13 +30,13 @@ def render_csv_help(window,lang='vi'):
 | --- | --- | --- |
 | Both | `task_type`, `name` | |
 | `fixed` | `start`, `end`; `repeat` or `one_off_date` | `prep_min`: 0–90 (0); `after_min`: 0–60 (0); `is_flexible`: Yes/No (No); `min_duration_min`: full duration |
-| `deadline` | `kind`: asap/hard/soft; `deadline`; `remaining_min` | `importance`: 1–3 (2); `focus`: high/low (high); `buffer_min`: 0–60, multiple of 5 (15); `earliest_start`; `chunk_min`, `chunk_max`: high 45/90, low 30/60 |''')
+| `deadline` | `kind`: asap/hard/soft; `deadline`; `remaining_min` | `importance`: 1–5 (2); `focus`: high/low (high); `buffer_min`: 0–60, multiple of 5 (15); `earliest_start`; `chunk_min`, `chunk_max`: high 45/90, low 30/60 |''')
         else:
             st.markdown('''| Loại | Cột bắt buộc | Cột tùy chọn và mặc định |
 | --- | --- | --- |
 | Cả hai | `task_type`, `name` | |
 | `fixed` | `start`, `end`; `repeat` hoặc `one_off_date` | `prep_min`: 0–90 (0); `after_min`: 0–60 (0); `is_flexible`: Có/Không (Không); `min_duration_min`: toàn bộ thời lượng |
-| `deadline` | `kind`: asap/hard/soft; `deadline`; `remaining_min` | `importance`: 1–3 (2); `focus`: high/low (high); `buffer_min`: 0–60, chia hết cho 5 (15); `earliest_start`; `chunk_min`, `chunk_max`: high 45/90, low 30/60 |''')
+| `deadline` | `kind`: asap/hard/soft; `deadline`; `remaining_min` | `importance`: 1–5 (2); `focus`: high/low (high); `buffer_min`: 0–60, chia hết cho 5 (15); `earliest_start`; `chunk_min`, `chunk_max`: high 45/90, low 30/60 |''')
         st.markdown(
             'Times: `HH:mm` (`end` also accepts `24:00`). Dates: `dd/mm/yyyy`. Deadlines and earliest starts: '
             '`dd/mm/yyyy HH:mm`. Repeat: `T2->CN` or `"T2,T4"`; quote any cell containing a comma. '

@@ -35,7 +35,7 @@ def test_english_form_and_errors():
     assert not app.exception
     assert any(e.value=='Please enter at least one task.' for e in app.error)
     app.button(key='add_False').click().run()
-    assert app.select_slider[0].label=='Importance' and app.select_slider[0].options==['1','2','3']
+    assert app.select_slider[0].label=='Importance' and app.select_slider[0].options==['1','2','3','4','5']
     next(b for b in app.button if b.label=='Save').click().run()
     assert not app.exception
     assert any('A name is required' in e.value for e in app.error)

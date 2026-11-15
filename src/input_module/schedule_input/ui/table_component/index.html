@@ -16,12 +16,13 @@ const en={
  'Nhấp đúp hoặc Enter để sửa':'Double-click or press Enter to edit',
  'Nhấp đúp vào ô hoặc nhấn Enter để sửa trực tiếp. Thay đổi hợp lệ được tự lưu.':'Double-click a cell or press Enter to edit. Valid changes are saved automatically.'
 };
+const kindLabel=value=>({asap:'ASAP',hard:'Hard',soft:'Soft'}[value]||value);
 const t=value=>args?.lang==='en'?(en[value]||value):value;
 function editCell(td,row,key){
  if(td.querySelector('input,select'))return;
- const choices={importance:['1','2','3'],kind:['asap','hard','soft'],focus:['high','low'],is_flexible:['Không','Có']};
+ const choices={importance:['1','2','3','4','5'],kind:['asap','hard','soft'],focus:['high','low'],is_flexible:['Không','Có']};
  const input=document.createElement(choices[key]?'select':'input');input.setAttribute('aria-label',key);
- if(choices[key]){for(const v of choices[key]){const o=text('option',t(v));o.value=v;input.append(o)}}
+ if(choices[key]){for(const v of choices[key]){const o=text('option',key==='kind'?kindLabel(v):t(v));o.value=v;input.append(o)}}
  input.value=row.raw[key]||'';td.replaceChildren(input);input.focus();if(input.select)input.select();
  let done=false;const save=()=>{if(done)return;done=true;if(input.value!==String(row.raw[key]||''))emit('submit',{raw:{...row.raw,[key]:input.value}});else render(args)};
  input.onblur=save;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();save()}if(e.key==='Escape'){done=true;render(args)}};
@@ -36,9 +37,9 @@ function render(a){args=a;document.documentElement.lang=a.lang||'vi';for(const [
   const tr=document.createElement('tr');tr.append(text('td',idx+1,'index'));table.append(tr);
   for(const [key]of cols){let value=row.raw[key]||'—';const td=text('td','',key==='name'?'name':'');
    if(key==='_duration'){td.textContent=row.meta.duration}
-   else if(key==='kind'){td.append(text('span',({asap:'ϟ ',hard:'▪ ',soft:'○ '}[value]||'')+value,'badge '+value))}
+   else if(key==='kind'){td.append(text('span',({asap:'ϟ ',hard:'▪ ',soft:'○ '}[value]||'')+kindLabel(value),'badge '+value))}
    else if(key==='repeat' && value!=='—'){td.append(text('span',value,'badge blue'))}
-   else if(key==='importance'){td.append(text('span','●'.repeat(Number(value))+'○'.repeat(3-Number(value)),'importance'));td.append(text('span',' '+value))}
+   else if(key==='importance'){td.append(text('span','●'.repeat(Number(value))+'○'.repeat(5-Number(value)),'importance'));td.append(text('span',' '+value))}
    else if(key==='is_flexible'){td.append(text('span',t(value),'toggle '+(value==='Có'?'on':'')))}
    else{td.textContent=value;if(key==='min_duration_min'){td.append(document.createElement('br'));td.append(text('span',row.meta.rigidity,'badge '+(row.raw.is_flexible==='Có'?'green':'neutral')))}}
    if(!key.startsWith('_')){td.classList.add('editable');td.tabIndex=0;td.title=t('Nhấp đúp hoặc Enter để sửa');td.ondblclick=()=>editCell(td,row,key);td.onkeydown=e=>{if(e.key==='Enter'&&!td.querySelector('input,select'))editCell(td,row,key)}}

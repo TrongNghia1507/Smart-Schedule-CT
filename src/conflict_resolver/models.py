@@ -25,7 +25,7 @@ class Task(Model):
     name: str = Field(min_length=1, max_length=200)
 
     kind: Literal["hard", "soft", "asap"]
-    importance: int = Field(ge=1, le=3)
+    importance: int = Field(ge=1, le=5)
 
     remaining_min: int = Field(gt=0, le=WEEK)
     earliest_start: int = Field(ge=0, lt=WEEK)
@@ -60,7 +60,7 @@ class FixedTask(Model):
     name: str
     interval: Interval
 
-    importance: int = Field(default=3, ge=1, le=3)
+    importance: int = Field(default=3, ge=1, le=5)
     can_shorten: bool = False
     min_duration: int = Field(default=1, ge=1, le=WEEK)
 

@@ -92,7 +92,10 @@ def apply_theme(mode):
         input:disabled,[data-testid="stNumberInput"] button:disabled{color:#596b82!important;-webkit-text-fill-color:#596b82!important;opacity:1!important;background:#eef2f6!important}
         [data-testid="stNumberInput"] button,[data-baseweb="select"]>div{background:#ffffff!important;color:#263345!important}
         button[kind="pills"],button[data-variant="pills"]{background:#eef4fa!important;color:#263345!important;border:1px solid #8b9cb0!important}
-        button[kind="pillsActive"],button[data-variant="pills"][aria-checked="true"]{background:#d8eaff!important;color:#174a78!important;border:1px solid #2f78ba!important}
+        /* React Aria pills use data-selected; retain selectors for older versions. */
+        button[kind="pillsActive"],button[data-variant="pills"][data-selected],button[data-variant="pills"][aria-checked="true"]{background:#2f78ba!important;color:#ffffff!important;border:1px solid #2f78ba!important}
+        button[kind="pillsActive"] *,button[data-variant="pills"][data-selected] *,button[data-variant="pills"][aria-checked="true"] *{color:#ffffff!important}
+        button[data-variant="pills"]:focus-visible{outline:2px solid #174a78;outline-offset:3px}
         [data-baseweb="tooltip"],[role="tooltip"],[role="tooltip"] *{background:#263345!important;color:#ffffff!important}
         [role="dialog"] button[aria-label="Close"]{color:#263345!important}
         [data-baseweb="radio"] label>div:first-child{background:#ffffff;border-color:#596b82}

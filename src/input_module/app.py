@@ -75,8 +75,8 @@ def editor(fixed,id=None):
         a,b=st.columns(2)
         row['start']=a.text_input(tr('Giờ bắt đầu (HH:mm)'),raw.get('start',''),key=key+'start')
         row['end']=b.text_input(tr('Giờ kết thúc (cho phép 24:00)'),raw.get('end',''),key=key+'end')
-        row['prep_min']=st.slider('Thời gian chuẩn bị (phút)' if language()=='vi' else 'Preparation time (minutes)',0,90,int(raw.get('prep_min') or 0),key=key+'prep')
-        row['after_min']=st.slider('Thời gian dự trù sau công việc (phút)' if language()=='vi' else 'Time reserved after task (minutes)',0,60,int(raw.get('after_min') or 0),key=key+'after')
+        row['prep_min']=st.slider('Thời gian chuẩn bị (phút)' if language()=='vi' else 'Preparation time (minutes)',0,90,int(raw.get('prep_min') or 0),step=5,key=key+'prep')
+        row['after_min']=st.slider('Thời gian dự trù sau công việc (phút)' if language()=='vi' else 'Time reserved after task (minutes)',0,60,int(raw.get('after_min') or 0),step=5,key=key+'after')
         row['is_flexible']=st.toggle(tr('Có thể chia nhỏ và co dãn'),value=raw.get('is_flexible')=='Có',key=key+'flex')
         duration=1440
         try:
@@ -84,8 +84,8 @@ def editor(fixed,id=None):
         except ValueError:pass
         row['min_duration_min']=st.number_input(tr('Thời lượng tối thiểu (phút)'),1,duration,min(int(raw.get('min_duration_min') or duration),duration),disabled=not row['is_flexible'],key=key+'minimum')
     else:
-        row['kind']=st.selectbox(tr('Loại'), ['asap','hard','soft'],index=['asap','hard','soft'].index(raw['kind']) if raw.get('kind') else None,help=tr('asap: việc gấp · hard: hạn cứng · soft: hạn mềm'),key=key+'kind')
-        row['importance']=st.select_slider(tr('Mức quan trọng'),options=[1,2,3],value=int(raw.get('importance') or 2),key=key+'importance')
+        row['kind']=st.selectbox(tr('Loại'), ['asap','hard','soft'],index=['asap','hard','soft'].index(raw['kind']) if raw.get('kind') else None,format_func=lambda value:{'asap':'ASAP','hard':'Hard','soft':'Soft'}[value],help=tr('ASAP: việc gấp · Hard: hạn cứng · Soft: hạn mềm'),key=key+'kind')
+        row['importance']=st.select_slider(tr('Mức quan trọng'),options=[1,2,3,4,5],value=int(raw.get('importance') or 2),key=key+'importance')
         deadline=DateTimeParser.parse(raw['deadline']) if raw.get('deadline') else None
         free_end=datetime.combine(s.data.window.week_end(),time(23,59))
         free_deadline=st.checkbox('Không có hạn chót cụ thể' if language()=='vi' else 'Free deadline',value=deadline==free_end,key=key+'free_deadline')
@@ -212,7 +212,7 @@ if st.session_state.page=='input':
         with st.form('settings'):
             w,a,b=st.columns([2,1,1])
             week=w.date_input(tr('Tuần lập lịch (chọn Thứ Hai)'),s.data.window.week_start,format='DD/MM/YYYY')
-            ss=a.text_input(tr('Bắt đầu ngủ mặc định'),hh(s.data.window.sleep.start));se=b.text_input(tr('Kết thúc ngủ mặc định'),hh(s.data.window.sleep.end))
+            ss=a.text_input(tr('Giờ ngủ'),hh(s.data.window.sleep.start));se=b.text_input(tr('Giờ thức dậy'),hh(s.data.window.sleep.end))
             st.caption(tr('Giờ ngủ được kẻ sọc trên lịch, không cần nhập thành công việc.'))
             if st.form_submit_button(tr('Áp dụng thiết lập')):
                 try:

@@ -42,7 +42,7 @@ class TaskFactory:
             if r.has_errors():return None,r
             return FixedTask(id,name,RepeatRule(days,day),tr,flex,Flexibility(minimum,duration),sleep,prep,after),r
         kind=read('kind',TaskKind,'V02'); focus=read('focus',FocusLevel,'V02','high')
-        importance=read('importance',lambda v:bounded(v,1,3),'V03',2)
+        importance=read('importance',lambda v:bounded(v,1,5),'V03',2)
         deadline=read('deadline',DateTimeParser.parse,'V04')
         remaining=read('remaining_min',lambda v:bounded(v,1,10**9),'V08')
         early=read('earliest_start',DateTimeParser.parse,'V09') if raw.get('earliest_start') else None
