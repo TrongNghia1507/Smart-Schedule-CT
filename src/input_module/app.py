@@ -123,6 +123,7 @@ def editor(fixed,id=None):
 @st.fragment
 def preview_panel():
     from schedule_input.ui.calendar_view import render_calendar
+    from schedule_validation.streamlit_panel import render_feasibility
     preview_data=deepcopy(s.data)
     if st.session_state.get('preview_current_week',False):
         now=datetime.now()
@@ -151,6 +152,7 @@ def preview_panel():
                             sync_revision=st.session_state.get('calendar_sync',0))
             if st.session_state.get('calendar_error'):report_ui(st.session_state.calendar_error)
             if st.session_state.get('calendar_message'):st.error(st.session_state.pop('calendar_message'))
+            feasibility_blocked=render_feasibility(s,refresh)
             st.caption('Kéo để dời giờ theo bước 10 phút. Với việc lặp, thay đổi áp dụng cho toàn bộ lịch lặp.' if language()=='vi' else 'Drag in 10-minute steps. Moving a recurring task updates the entire series.')
     with side:
         with st.container(border=True,key="summary_card"):
@@ -163,7 +165,7 @@ def preview_panel():
             st.html('<div class="legend"><span class="swatch"></span>'+tr('Việc cố định (tên + giờ)')+'</div><div class="legend"><span class="swatch sleep"></span>'+tr('Giờ ngủ')+' '+hh(s.data.window.sleep.start)+'–'+hh(s.data.window.sleep.end)+'</div><div class="legend"><span class="swatch line"></span>'+tr('Thời gian hiện tại')+'</div><div class="legend">'+tr('↔ Có thể chia nhỏ / co dãn')+'</div>')
             st.caption(tr('Bấm vào một việc để sửa nhanh. Việc có deadline chưa được xếp nên chưa hiện ở đây.'))
         if st.button(tr('← Quay lại nhập'),use_container_width=True):st.session_state.page='input';refresh()
-        if st.button(tr('Đúng rồi, tiếp tục'),key='confirm_snapshot',type='primary',disabled=report.has_errors(),use_container_width=True):
+        if st.button(tr('Đúng rồi, tiếp tục'),key='confirm_snapshot',type='primary',disabled=report.has_errors() or feasibility_blocked,use_container_width=True):
             try:st.session_state.snapshot=s.confirm();st.success(tr('Đã tạo InputSnapshot, sẵn sàng cho Ranking.'))
             except ValueError as ex:st.error(tr(str(ex)))
         if st.session_state.get('snapshot'):st.download_button(tr('Xuất snapshot JSON để debug'),st.session_state.snapshot.to_json(),'input_snapshot.json',mime='application/json')

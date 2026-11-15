@@ -17,7 +17,7 @@ def exclude_candidates(context, target):
             "operation": "EXCLUDE_FROM_WEEK",
             "task_id": target.id,
         },
-        f"Bỏ task {target.id} khỏi kế hoạch tuần hiện tại.",
+        f"Bỏ task “{target.name}” khỏi kế hoạch tuần hiện tại.",
         ["Task vẫn được lưu và chưa được xem là hoàn thành."],
     )
 
@@ -60,7 +60,7 @@ def compress_candidates(context, target):
                 ),
             },
             (
-                f"Giảm thời lượng task {target.id} từ "
+                f"Giảm thời lượng task “{target.name}” từ "
                 f"{target.remaining_min} xuống {duration} phút."
             ),
             [
@@ -118,14 +118,14 @@ def postpone_candidates(context, target):
                     "new_deadline": deadline,
                 },
                 (
-                    f"Dời deadline task {original.id} từ phút "
+                    f"Dời deadline task “{original.name}” từ phút "
                     f"{original.deadline} sang phút {deadline} của tuần."
                 ),
                 ["Phương án chỉ được kiểm chứng trong tuần hiện tại."],
             )
 
 
-def relax_candidates(context, target):
+def _relax_inputs(context, target):
     eligible = [
         fixed for fixed in context.fixed_tasks
         if fixed.can_shorten
@@ -185,6 +185,12 @@ def relax_candidates(context, target):
         if start != window.start or end != window.end:
             expansions.append((index, start, end))
 
+    return eligible, fixed_groups, expansions
+
+
+def relax_candidates(context, target):
+    eligible, fixed_groups, expansions = _relax_inputs(context, target)
+
     # Thử từng nhóm fixed, mở rộng giờ, và kết hợp cả hai.
     for group in [[], *fixed_groups]:
         for expansion in expansions:
@@ -216,7 +222,7 @@ def relax_candidates(context, target):
                 })
 
                 descriptions.append(
-                    f"Rút ngắn fixed task {fixed.id} {reduced} phút."
+                    f"Rút ngắn việc cố định “{fixed.name}” {reduced} phút."
                 )
 
             if expansion is not None:
@@ -246,3 +252,90 @@ def relax_candidates(context, target):
                     "các thay đổi sinh hoạt."
                 ],
             )
+
+
+# ---------------------------------------------------------------------------
+# Kiểm tra ngữ cảnh: option chỉ "khả dụng" khi đúng bản chất của chính nó.
+# Mỗi hàm trả về None (có thể thử sinh ứng viên) hoặc lý do cụ thể, đọc được
+# bởi người dùng, giải thích vì sao option này không áp dụng được ở ngữ cảnh này.
+# ---------------------------------------------------------------------------
+
+def exclude_precheck(context, target):
+    if not target.allow_exclude:
+        return (
+            f"Task “{target.name}” không cho phép gỡ khỏi kế hoạch tuần "
+            "(allow_exclude = false)."
+        )
+    return None
+
+
+def compress_precheck(context, target):
+    if not target.allow_compress:
+        return (
+            f"Task “{target.name}” không cho phép rút gọn thời lượng "
+            "(allow_compress = false)."
+        )
+
+    if target.min_remaining_min >= target.remaining_min:
+        return (
+            f"Thời lượng task “{target.name}” ({target.remaining_min} phút) "
+            "đã bằng mức tối thiểu cho phép nên không còn chỗ để rút gọn."
+        )
+
+    return None
+
+
+def postpone_precheck(context, target):
+    if target.kind == "soft":
+        if target.max_postpone_minutes <= 0:
+            return (
+                f"Task soft “{target.name}” không cho phép dời hạn chót "
+                "(max_postpone_minutes = 0)."
+            )
+
+        if target.deadline >= WEEK:
+            return (
+                f"Hạn chót của task “{target.name}” đã ở cuối tuần; engine chỉ "
+                "kiểm chứng trong tuần hiện tại nên không dời thêm được."
+            )
+
+        return None
+
+    # Task hard/asap không tự dời hạn; chỉ dời task soft quan trọng thấp hơn.
+    movable = [
+        task for task in context.tasks
+        if task.id != target.id
+        and task.kind == "soft"
+        and task.importance < target.importance
+    ]
+
+    if not movable:
+        return (
+            f"Task “{target.name}” thuộc loại {target.kind} nên không tự dời hạn, "
+            f"và không có task soft nào có độ quan trọng thấp hơn "
+            f"{target.importance} để dời thay."
+        )
+
+    if all(
+        task.max_postpone_minutes <= 0 or task.deadline >= WEEK
+        for task in movable
+    ):
+        return (
+            "Các task soft có độ quan trọng thấp hơn đều không cho phép dời "
+            "hạn chót hoặc đã sát cuối tuần."
+        )
+
+    return None
+
+
+def relax_precheck(context, target):
+    eligible, _, expansions = _relax_inputs(context, target)
+
+    if eligible or len(expansions) > 1:
+        return None
+
+    return (
+        "Không có việc cố định nào được phép rút ngắn với độ quan trọng "
+        f"thấp hơn {target.importance} trước hạn chót, và chính sách khung "
+        "giờ hiện tại không cho mở rộng thời gian hoạt động."
+    )
