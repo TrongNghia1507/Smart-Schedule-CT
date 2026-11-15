@@ -281,6 +281,16 @@ class PlanningSession:
 
         # Kiểm tra trên bản sao trước khi cập nhật thật.
         if candidate.tasks:
+            remaining_ids = {
+                task.id
+                for task in candidate.tasks
+            }
+
+            # Nếu target vừa bị xóa, chuyển tham chiếu
+            # sang một task còn tồn tại trước khi validate.
+            if candidate.target_task_id not in remaining_ids:
+                candidate.target_task_id = candidate.tasks[0].id
+
             candidate = ConflictContext.model_validate(
                 candidate.model_dump()
             )
@@ -305,6 +315,15 @@ class PlanningSession:
             for task in updated.tasks
             if task.id not in scoped_ids
         ] + candidate.tasks
+
+        if updated.tasks:
+            remaining_ids = {
+                task.id
+                for task in updated.tasks
+            }
+
+            if updated.target_task_id not in remaining_ids:
+                updated.target_task_id = updated.tasks[0].id
 
         updated.fixed_tasks = candidate.fixed_tasks
         updated.active_windows = candidate.active_windows
