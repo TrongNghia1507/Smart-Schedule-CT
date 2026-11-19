@@ -22,15 +22,33 @@
 ## Output
 
 - Ba options khi có conflict: bỏ khỏi tuần, giảm thời lượng, nới ràng buộc.
-## Output
-
-- Bốn options khi có conflict.
 - is_available chỉ true khi engine xếp được toàn bộ task còn giữ.
 - factual_description là mô tả do code tạo.
 - ai_description là phần giải thích AI hoặc fallback.
 - preview là lịch xem trước.
 - schedule_version được chuyển tiếp để backend chung kiểm tra khi áp dụng.
-- deficit_minutes là tổng phút chưa xếp trong lần chạy cơ sở.
+- deficit_minutes là số phút target không xếp được khi giữ nguyên các task còn lại
+  (thời lượng yêu cầu trừ số phút lớn nhất còn xếp được).
+
+## Option 3: nới ràng buộc
+
+Chỉ có hai loại thay đổi, đều phải do người dùng chọn:
+
+1. **REMOVE_FIXED** – xóa hẳn một lần diễn ra của sự kiện cố định (cùng thời
+   gian chuẩn bị/đi về của nó). Không bao giờ rút ngắn sự kiện.
+   - Chỉ xóa sự kiện có `can_remove = true` (cột "Xóa được khi bận" ở Input).
+   - Chỉ xóa lần diễn ra chưa bắt đầu và bắt đầu trước deadline của target
+     (ngày deadline và các ngày trước đó).
+2. **EXPAND_ACTIVE_WINDOW** – dậy sớm hơn (`earlier_minutes`) hoặc thức
+   muộn hơn (`later_minutes`), tối đa `max_earlier_minutes` /
+   `max_later_minutes` mỗi khung giờ. Chỉ nới các ngày không sau ngày
+   deadline; ở ngày deadline không thức quá giờ deadline.
+   Giá mỗi phút = `sleep_cost_per_minute + sleep_tier_step_cost × số ngày
+   cách ngày deadline`, nên solver nới sát deadline trước: dậy sớm ngày
+   deadline, rồi mới đến thức khuya/dậy sớm ngày hôm trước, v.v.
+
+Solver chọn tổ hợp rẻ nhất: giá xóa = `remove_cost_per_minute × số phút bị
+xóa`, cộng `event_touch_penalty` cho mỗi lần diễn ra bị xóa/mỗi đêm bị đụng.
 
 ## Tích hợp engine
 

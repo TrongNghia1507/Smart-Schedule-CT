@@ -76,49 +76,52 @@ def describe_changes(option, context, week_start):
 
     lines = []
 
-    for change in payload.get("changes", []):
-        if change["operation"] == "SHORTEN_FIXED":
-            fixed = fixed_tasks[change["task_id"]]
+    days = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ nhật"]
 
-            old_duration = (
-                change["old_end"]
-                - fixed.interval.start
-            )
+    def clock(minute):
+        value = minute % 1440
+        return f"{value // 60:02}:{value % 60:02}"
 
-            new_duration = (
-                change["new_end"]
-                - fixed.interval.start
-            )
+    def day_name(minute):
+        return days[min(minute // 1440, 6)]
 
-            occurrence_date = moment(
-                fixed.interval.start
-            )[:10]
+    changes = payload.get("changes", [])
 
-            old_end = moment(change["old_end"])
-            new_end = moment(change["new_end"])
+    for change in changes:
+        if change["operation"] != "REMOVE_FIXED":
+            continue
 
+        lines.append(
+            f"Xóa “{change['name']}” {day_name(change['start'])} "
+            f"{moment(change['start'])[:10]} "
+            f"({clock(change['start'])}–{clock(change['end'])}); "
+            f"giải phóng {change['removed_minutes']} phút."
+        )
+
+    for change in changes:
+        if change["operation"] != "EXPAND_ACTIVE_WINDOW":
+            continue
+
+        window = context.active_windows[change["window_index"]]
+        day = day_name(window.start)
+
+        earlier = change.get(
+            "earlier_minutes", window.start - change["new_start"]
+        )
+        later = change.get(
+            "later_minutes", change["new_end"] - window.end
+        )
+
+        if earlier:
             lines.append(
-                f"Rút “{fixed.name}” ngày {occurrence_date} "
-                f"từ {old_duration} xuống {new_duration} phút; "
-                f"giờ kết thúc đổi từ {old_end} "
-                f"thành {new_end}."
+                f"{day}: dậy sớm hơn {earlier} phút "
+                f"({clock(window.start)} → {clock(change['new_start'])})."
             )
 
-        elif change["operation"] == "EXPAND_ACTIVE_WINDOW":
-            window = context.active_windows[
-                change["window_index"]
-            ]
-
-            old_start = moment(window.start)
-            old_end = moment(window.end)
-
-            new_start = moment(change["new_start"])
-            new_end = moment(change["new_end"])
-
+        if later:
             lines.append(
-                "Đổi khung giờ thức từ "
-                f"{old_start} – {old_end} thành "
-                f"{new_start} – {new_end}."
+                f"{day}: thức muộn hơn {later} phút "
+                f"({clock(window.end)} → {clock(change['new_end'])})."
             )
 
     lines.append(

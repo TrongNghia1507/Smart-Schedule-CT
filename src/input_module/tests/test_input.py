@@ -111,3 +111,35 @@ def test_union_free_time(data):
     before=free_minutes(empty)
     empty.add(fixed(start='13:00',end='14:00'));empty.add(fixed(start='13:30',end='14:30'))
     assert before-free_minutes(empty)==90
+
+def test_removable_when_busy_roundtrip(data):
+    t=fixed(name='Cafe',removable_when_busy='Có')
+    assert t.removable is True
+    assert fixed(name='Gym').removable is False
+    row=TaskFactory.to_dict(t)
+    assert row['removable_when_busy'] is True
+    assert TaskFactory.to_row_view(t)['removable_when_busy']=='Có'
+    again,report=TaskFactory.from_dict(row,True)
+    assert not report.has_errors() and again.removable is True
+    data.add(t)
+    snapshot=SnapshotBuilder().build(data).to_dict()
+    cafe=[x for x in snapshot['fixed_tasks'] if x['name']=='Cafe'][0]
+    assert cafe['removable_when_busy'] is True
+
+def test_removable_when_busy_rejects_bad_value():
+    row=dict(name='X',repeat='T2',start='13:00',end='14:00',removable_when_busy='có thể')
+    task,report=TaskFactory.from_raw(row,True)
+    assert task is None and any(i.code=='F11' for i in report.issues)
+
+def test_removable_when_busy_csv_and_update(data):
+    content='task_type,name,repeat,start,end,removable_when_busy\nfixed,Cafe,T2,13:00,14:00,Có\n'.encode()
+    result,reports,_=ImportExportService().preview_mixed(TaskInputService(data,InMemoryRepository()),content)
+    assert all(not r.has_errors() for _,r in reports)
+    cafe=[t for t in result.fixed_tasks if t.name=='Cafe'][0]
+    assert cafe.removable
+    # Bảng cũ không gửi cột này: sửa tên không được làm mất cờ.
+    service=TaskInputService(result,InMemoryRepository())
+    row=TaskFactory.to_row_view(cafe);row.pop('removable_when_busy');row['name']='Cafe 2'
+    row['repeat']='T2'
+    assert not service.submit(row,True).has_errors()
+    assert [t for t in service.data.fixed_tasks if t.name=='Cafe 2'][0].removable

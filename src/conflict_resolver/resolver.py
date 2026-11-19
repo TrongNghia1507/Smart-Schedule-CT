@@ -5,6 +5,7 @@ from .strategies.options import (
     exclude_candidates,
     relax_candidates,
     relaxation_blocks,
+    remove_change,
 )
 from .errors import SolverInconclusive
 
@@ -92,10 +93,12 @@ def optimized_relaxation(context, target, scheduler):
 
     blocks, sources = relaxation_blocks(context, target)
 
-    if not any(
-        block.left_max or block.right_max
-        for block in blocks
-    ):
+    can_remove = any(block.removable is not None for block in blocks)
+    can_widen = any(
+        block.left_max or block.right_max for block in blocks
+    )
+
+    if not (can_remove or can_widen):
         return
 
     # Bài toán có thêm biến nới nên cho solver nhiều thời gian hơn.
@@ -103,7 +106,7 @@ def optimized_relaxation(context, target, scheduler):
         time_limit=max(scheduler.time_limit, 3.0)
     )
 
-    result, cuts = engine.plan_relaxed(
+    result, cuts, removed_keys = engine.plan_relaxed(
         context,
         blocks,
         step=context.policy.compression_step_minutes,
@@ -113,15 +116,46 @@ def optimized_relaxation(context, target, scheduler):
         return
 
     candidate = context.model_copy(deep=True)
+    changes = []
 
-    fixed_by_id = {
-        fixed.id: fixed
-        for fixed in candidate.fixed_tasks
+    # 1. Xóa các lần diễn ra (kèm chuẩn bị/đi về), sát deadline trước.
+    groups = {}
+
+    for fixed in context.fixed_tasks:
+        groups.setdefault(fixed.group or fixed.id, []).append(fixed)
+
+    removed = sorted(
+        (
+            (key, groups[key])
+            for key in removed_keys
+            if key in groups
+        ),
+        key=lambda item: -min(
+            piece.interval.start for piece in item[1]
+        ),
+    )
+
+    removed_minutes = 0
+
+    for key, pieces in removed:
+        change = remove_change(key, pieces)
+        changes.append(change)
+        removed_minutes += change["removed_minutes"]
+
+    dropped_ids = {
+        task_id
+        for change in changes
+        for task_id in change["task_ids"]
     }
 
-    changes = []
-    widened = set()
-    total = 0
+    candidate.fixed_tasks = [
+        fixed
+        for fixed in candidate.fixed_tasks
+        if fixed.id not in dropped_ids
+    ]
+
+    # 2. Nới giờ thức/ngủ, sát deadline trước.
+    widened = {}
 
     for index in sorted(cuts):
         left, right = cuts[index]
@@ -129,39 +163,27 @@ def optimized_relaxation(context, target, scheduler):
         if not left and not right:
             continue
 
-        total += left + right
         source = sources[index]
 
-        if source[0] == "fixed":
-            fixed = fixed_by_id[source[1]]
-            old_end = fixed.interval.end
+        if source[0] != "gap":
+            continue
 
-            fixed.interval.end = old_end - right
+        _, before, after = source
 
-            changes.append(
-                {
-                    "operation": "SHORTEN_FIXED",
-                    "task_id": fixed.id,
-                    "old_end": old_end,
-                    "new_end": fixed.interval.end,
-                }
-            )
+        if left and before is not None:
+            candidate.active_windows[before].end += left
+            widened.setdefault(before, [0, 0])[1] += left
 
-        else:
-            _, before, after = source
+        if right and after is not None:
+            candidate.active_windows[after].start -= right
+            widened.setdefault(after, [0, 0])[0] += right
 
-            if left and before is not None:
-                candidate.active_windows[before].end += left
-                widened.add(before)
+    widened_minutes = 0
 
-            if right and after is not None:
-                candidate.active_windows[after].start -= right
-                widened.add(after)
-
-    shortened = len(changes)
-
-    for index in sorted(widened):
+    for index in sorted(widened, reverse=True):
+        earlier, later = widened[index]
         window = candidate.active_windows[index]
+        widened_minutes += earlier + later
 
         changes.append(
             {
@@ -169,6 +191,8 @@ def optimized_relaxation(context, target, scheduler):
                 "window_index": index,
                 "new_start": window.start,
                 "new_end": window.end,
+                "earlier_minutes": earlier,
+                "later_minutes": later,
             }
         )
 
@@ -178,17 +202,18 @@ def optimized_relaxation(context, target, scheduler):
     proven = engine.last_status == "OPTIMAL"
 
     description = (
-        f"Nới ràng buộc: rút {shortened} sự kiện cố định, "
-        f"mở rộng {len(widened)} khung giờ thức, "
-        f"tổng {total} phút. "
+        f"Nới ràng buộc: xóa {len(removed)} sự kiện cố định "
+        f"({removed_minutes} phút), "
+        f"mở rộng {len(widened)} khung giờ thức "
+        f"({widened_minutes} phút). "
     )
 
     if proven:
-        description += "Đây là mức nới nhỏ nhất đã chứng minh."
+        description += "Đây là phương án nới ít tốn nhất đã chứng minh."
     else:
         description += (
             "Đây là mức nới khả thi; hết thời gian "
-            "trước khi chứng minh nhỏ nhất."
+            "trước khi chứng minh ít tốn nhất."
         )
 
     # Phần tử thứ 5: lịch đã xếp đủ, resolve() dùng làm preview
@@ -201,11 +226,13 @@ def optimized_relaxation(context, target, scheduler):
         },
         description,
         [
-            "Cần người dùng chọn trước khi "
-            "đổi giờ sinh hoạt."
+            "Cần người dùng chọn trước khi xóa sự kiện "
+            "hoặc đổi giờ sinh hoạt."
         ],
         result,
     )
+
+
 def compute_deficit(context, target, scheduler, baseline):
     """Số phút thiếu thật của target."""
     if scheduler.name != "core-cp-sat":

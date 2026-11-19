@@ -3,7 +3,8 @@
 Input  (dict, what the Streamlit form collects):
   week_start "YYYY-MM-DD" (a Monday, 00:00) | now "YYYY-MM-DD HH:MM"
   fixed:     [{name, days:[0..6], start "HH:MM", end "HH:MM", type: study|meal|leisure|sleep|other,
-               prep_min (0 = none), min_duration_min (optional: shortest it may be shrunk to)}]
+               prep_min (0 = none), min_duration_min (optional: shortest it may be shrunk to),
+               removable (optional: true = may be deleted when a deadline task conflicts)}]
   deadlines: [{name, mode: attend|progress, kind: asap|hard|soft, date "YYYY-MM-DD", time "HH:MM",
                duration_min (attend) | estimate_min / estimate_h (progress), start "now" | "YYYY-MM-DD HH:MM",
                whole: true = one single block (cửa sổ = [start, date time]), e.g. chạy bộ 1h trong 16h-18h,
@@ -112,6 +113,7 @@ def normalize(raw: dict, answers: Optional[dict] = None,
             continue
         prep, mn = int(f.get("prep_min") or 0), f.get("min_duration_min")
         back = int(f.get("after_min") or 0)               # travel home / wrap-up after the event
+        rem = bool(f.get("removable"))                    # prep/after đi cùng sự kiện: xóa cùng nhau
         for d in days:
             if typ == "sleep" and (e < s or s < 360):      # overnight sleep -> defines the day window
                 night_sleep.append((d, e, DAY if e > s else s))
@@ -119,13 +121,13 @@ def normalize(raw: dict, answers: Optional[dict] = None,
             pieces = [(d * DAY + s, d * DAY + e)] if e > s else [(d * DAY + s, (d + 1) * DAY)] + \
                      ([((d + 1) * DAY, (d + 1) * DAY + e)] if d < 6 else [])
             for k, (a, b) in enumerate(pieces):
-                fixed.append(Fixed(f"F{i + 1}@{d}.{k}", name, a, b, mn if len(pieces) == 1 else None, typ))
+                fixed.append(Fixed(f"F{i + 1}@{d}.{k}", name, a, b, mn if len(pieces) == 1 else None, typ, rem))
             if prep > 0:
                 fixed.append(Fixed(f"F{i + 1}@{d}.prep", f"{name} (chuẩn bị/di chuyển)",
-                                   max(0, pieces[0][0] - prep), pieces[0][0], None, "prep"))
+                                   max(0, pieces[0][0] - prep), pieces[0][0], None, "prep", rem))
             if back > 0:
                 fixed.append(Fixed(f"F{i + 1}@{d}.back", f"{name} (di chuyển về)",
-                                   pieces[-1][1], min(WEEK, pieces[-1][1] + back), None, "prep"))
+                                   pieces[-1][1], min(WEEK, pieces[-1][1] + back), None, "prep", rem))
 
     if not night_sleep:
         err("SLEEP_MISSING", "fixed", "Bắt buộc có lịch NGỦ NGHỈ qua đêm (ví dụ 23:00–06:30) để hệ thống không xếp task vào giờ ngủ.")

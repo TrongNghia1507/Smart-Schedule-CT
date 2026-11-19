@@ -107,12 +107,15 @@ cố định là hết Chủ nhật và có thể bỏ khỏi tuần.
    Không khẳng định vẫn hoàn thành đủ nội dung.
    Không khẳng định ảnh hưởng nhỏ khi chưa có bằng chứng.
 
-3. Chỉ rút ngắn fixed task hoặc mở rộng khung giờ thức
-   theo changes trong action_payload.
-   SHORTEN_FIXED nghĩa là rút ngắn fixed task.
-   EXPAND_ACTIVE_WINDOW nghĩa là mở rộng khung giờ thức.
+3. Chỉ xóa các sự kiện cố định mà người dùng đã cho phép xóa khi bận,
+   hoặc mở rộng khung giờ thức, theo changes trong action_payload.
+   REMOVE_FIXED nghĩa là xóa hẳn một lần diễn ra của sự kiện cố định
+   (không rút ngắn); sự kiện đó chỉ bị xóa ở ngày deadline hoặc trước đó.
+   EXPAND_ACTIVE_WINDOW nghĩa là mở rộng khung giờ thức:
+   earlier_minutes là dậy sớm hơn, later_minutes là thức muộn hơn;
+   engine nới sát deadline trước rồi mới lùi về các ngày trước.
    Không nói lựa chọn 3 dời deadline.
-   Không nói xóa fixed task nếu payload không có thao tác đó.
+   Không nói xóa fixed task nếu payload không có REMOVE_FIXED.
    Chỉ nói thay đổi giờ thức/ngủ khi có EXPAND_ACTIVE_WINDOW.
    Nếu minimal_proven=true thì mức nới đã được chứng minh
    là nhỏ nhất; nếu false thì chỉ nói là mức khả thi.

@@ -9,7 +9,7 @@ const height=()=>send('streamlit:setFrameHeight',{height:Math.min(850,document.d
 let args;
 const en={
  'Tên':'Name','Lặp lại':'Repeat','Bắt đầu':'Start','Kết thúc':'End','Thời lượng':'Duration',
- 'Chia nhỏ & co dãn':'Split & shorten','Tối thiểu':'Minimum','Ngày diễn ra':'Date',
+ 'Chia nhỏ & co dãn':'Split & shorten','Xóa được khi bận':'Removable when busy','Tối thiểu':'Minimum','Ngày diễn ra':'Date',
  'Bắt buộc':'Mandatory','Quan trọng':'Importance','Hạn chót':'Deadline','Sớm nhất':'Earliest start',
  'Sửa':'Edit','Xóa':'Delete','Có':'Yes','Không':'No',
  'Chưa có công việc. Bấm “+ Thêm bằng form” để bắt đầu.':'No tasks yet. Click “+ Add with form” to get started.',
@@ -19,7 +19,7 @@ const en={
 const t=value=>args?.lang==='en'?(en[value]||value):value;
 function editCell(td,row,key){
  if(td.querySelector('input,select'))return;
- const choices={importance:['1','2','3'],mandatory:['Không','Có'],focus:['high','low'],is_flexible:['Không','Có']};
+ const choices={importance:['1','2','3'],mandatory:['Không','Có'],focus:['high','low'],is_flexible:['Không','Có'],removable_when_busy:['Không','Có']};
  const input=document.createElement(choices[key]?'select':'input');input.setAttribute('aria-label',key);
  if(choices[key]){for(const v of choices[key]){const o=text('option',t(v));o.value=v;input.append(o)}}
  input.value=row.raw[key]||'';td.replaceChildren(input);input.focus();if(input.select)input.select();
@@ -30,7 +30,7 @@ function render(a){args=a;document.documentElement.lang=a.lang||'vi';for(const [
  const root=document.getElementById('root');root.replaceChildren();const wrap=text('div','','wrap');root.append(wrap);
  if(!a.rows.length){wrap.append(text('div',t('Chưa có công việc. Bấm “+ Thêm bằng form” để bắt đầu.'),'empty'));height();return}
  const table=document.createElement('table');wrap.append(table);
- const cols=a.fixed?[['name','Tên'],['repeat','Lặp lại'],['start','Bắt đầu'],['end','Kết thúc'],['_duration','Thời lượng'],['is_flexible','Chia nhỏ & co dãn'],['min_duration_min','Tối thiểu'],['one_off_date','Ngày diễn ra']]:[['name','Tên'],['mandatory','Bắt buộc'],['importance','Quan trọng'],['deadline','Hạn chót'],['remaining_min','Thời lượng'],['focus','Focus'],['buffer_min','Buffer'],['earliest_start','Sớm nhất'],['chunk_min','Chunk min'],['chunk_max','Chunk max']];
+ const cols=a.fixed?[['name','Tên'],['repeat','Lặp lại'],['start','Bắt đầu'],['end','Kết thúc'],['_duration','Thời lượng'],['is_flexible','Chia nhỏ & co dãn'],['min_duration_min','Tối thiểu'],['removable_when_busy','Xóa được khi bận'],['one_off_date','Ngày diễn ra']]:[['name','Tên'],['mandatory','Bắt buộc'],['importance','Quan trọng'],['deadline','Hạn chót'],['remaining_min','Thời lượng'],['focus','Focus'],['buffer_min','Buffer'],['earliest_start','Sớm nhất'],['chunk_min','Chunk min'],['chunk_max','Chunk max']];
  const head=document.createElement('tr');head.append(text('th','#'));for(const [,label]of cols)head.append(text('th',t(label)));head.append(text('th',''));table.append(head);
  for(const [idx,row] of a.rows.entries()){
   const tr=document.createElement('tr');tr.append(text('td',idx+1,'index'));table.append(tr);
@@ -39,7 +39,7 @@ function render(a){args=a;document.documentElement.lang=a.lang||'vi';for(const [
    else if(key==='mandatory'){td.append(text('span',t(value),'toggle '+(value==='Có'?'on':'')))}
    else if(key==='repeat' && value!=='—'){td.append(text('span',value,'badge blue'))}
    else if(key==='importance'){td.append(text('span','●'.repeat(Number(value))+'○'.repeat(3-Number(value)),'importance'));td.append(text('span',' '+value))}
-   else if(key==='is_flexible'){td.append(text('span',t(value),'toggle '+(value==='Có'?'on':'')))}
+   else if(key==='is_flexible'||key==='removable_when_busy'){td.append(text('span',t(value),'toggle '+(value==='Có'?'on':'')))}
    else{td.textContent=value;if(key==='min_duration_min'){td.append(document.createElement('br'));td.append(text('span',row.meta.rigidity,'badge '+(row.raw.is_flexible==='Có'?'green':'neutral')))}}
    if(!key.startsWith('_')){td.classList.add('editable');td.tabIndex=0;td.title=t('Nhấp đúp hoặc Enter để sửa');td.ondblclick=()=>editCell(td,row,key);td.onkeydown=e=>{if(e.key==='Enter'&&!td.querySelector('input,select'))editCell(td,row,key)}}
    tr.append(td);

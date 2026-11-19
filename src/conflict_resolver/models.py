@@ -59,8 +59,18 @@ class FixedTask(Model):
     interval: Interval
 
     importance: int = Field(default=3, ge=1, le=3)
+    # Giữ lại để tương thích với dữ liệu cũ; option 3 KHÔNG còn rút ngắn fixed.
     can_shorten: bool = False
     min_duration: int = Field(default=1, ge=1, le=WEEK)
+
+    # Được phép xóa lần diễn ra này khi xử lý conflict (cột
+    # "Xóa được khi bận" ở khối Input).
+    can_remove: bool = False
+    # Các mảnh của cùng một lần diễn ra (sự kiện, chuẩn bị, đi về,
+    # đoạn qua nửa đêm) có chung group và bị xóa cùng nhau.
+    group: str | None = None
+    # True với mảnh phụ (chuẩn bị / đi về).
+    ancillary: bool = False
 
     @model_validator(mode="after")
     def validate_minimum(self):
@@ -79,8 +89,12 @@ class Policy(Model):
     compression_step_minutes: int = Field(default=15, ge=1, le=60)
 
     # Giá của option "Nới ràng buộc" (chỉnh tại đây).
+    # Giờ thức/ngủ: giá mỗi phút = sleep_cost + step × (số ngày cách ngày deadline),
+    # nên solver ưu tiên nới sát deadline trước.
     sleep_cost_per_minute: int = Field(default=3, ge=0, le=100)
-    fixed_cut_cost_per_minute: int = Field(default=1, ge=0, le=100)
+    sleep_tier_step_cost: int = Field(default=2, ge=0, le=100)
+    # Xóa một sự kiện cố định "xóa được khi bận": giá mỗi phút bị xóa.
+    remove_cost_per_minute: int = Field(default=1, ge=0, le=100)
     event_touch_penalty: int = Field(default=30, ge=0, le=1000)
 
 

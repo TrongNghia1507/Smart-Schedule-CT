@@ -97,6 +97,10 @@ def context_from_snapshot(snapshot, policy=None):
                 fixed.min_elastic
                 or fixed.end - fixed.start
             ),
+            can_remove=fixed.removable,
+            # "F2@1.0", "F2@1.prep" -> cùng lần diễn ra "F2@1"
+            group=fixed.id.split(".")[0],
+            ancillary=fixed.type == "prep",
         )
         for fixed in instance.fixed
     ]
@@ -273,22 +277,30 @@ class PlanningSession:
 
         else:
             for change in payload["changes"]:
-                if change["operation"] == "SHORTEN_FIXED":
-                    fixed = next(
+                operation = change["operation"]
+
+                if operation == "REMOVE_FIXED":
+                    # Xóa cả lần diễn ra: sự kiện + chuẩn bị + đi về.
+                    dropped = set(change["task_ids"])
+
+                    candidate.fixed_tasks = [
                         item
                         for item in candidate.fixed_tasks
-                        if item.id == change["task_id"]
-                    )
+                        if item.id not in dropped
+                    ]
 
-                    fixed.interval.end = change["new_end"]
-
-                else:
+                elif operation == "EXPAND_ACTIVE_WINDOW":
                     window = candidate.active_windows[
                         change["window_index"]
                     ]
 
                     window.start = change["new_start"]
                     window.end = change["new_end"]
+
+                else:
+                    raise ValueError(
+                        f"Thao tác không hỗ trợ: {operation}"
+                    )
 
         kept_chunks = []
 

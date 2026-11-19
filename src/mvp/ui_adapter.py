@@ -97,6 +97,8 @@ def snapshot_to_raw(snapshot: Any) -> Tuple[dict, UiMeta]:
                 "type": row.get("type") if row.get("type") in FIXED_TYPES else "other"}
         if row.get("is_flexible") and row.get("min_duration_min"):
             item["min_duration_min"] = int(row["min_duration_min"])
+        if row.get("removable_when_busy"):
+            item["removable"] = True
         for key in ("prep_min", "after_min"):                      # khóa tùy chọn, UI hiện chưa có
             if row.get(key):
                 item[key] = int(row[key])

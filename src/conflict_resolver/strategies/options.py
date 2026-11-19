@@ -86,78 +86,161 @@ def compress_candidates(context, target):
 
 
 
+def _occurrence_groups(context):
+    """Gom các mảnh của cùng một lần diễn ra: {khóa: [FixedTask, ...]}."""
+    groups = {}
+
+    for fixed in context.fixed_tasks:
+        groups.setdefault(fixed.group or fixed.id, []).append(fixed)
+
+    return groups
+
+
+def _removable(pieces, context, target):
+    """Một lần diễn ra có xóa được để nhường chỗ cho target không.
+
+    Chỉ xét sự kiện đã được đánh dấu "xóa được khi bận", chưa bắt đầu,
+    và nằm trước deadline của target (ngày deadline và các ngày trước đó).
+    """
+    if not all(piece.can_remove for piece in pieces):
+        return False
+
+    mains = [piece for piece in pieces if not piece.ancillary] or pieces
+
+    start = min(piece.interval.start for piece in mains)
+    end = max(piece.interval.end for piece in mains)
+
+    return (
+        start >= context.now_minute
+        and start < target.deadline
+        and end > target.earliest_start
+    )
+
+
+def _window_room(context, target, index):
+    """Mức nới tối đa của một khung giờ thức: (sớm hơn, muộn hơn).
+
+    Chỉ nới các ngày không sau ngày deadline. Ở ngày deadline, không
+    nới quá giờ deadline vì phần đó không giúp ích gì cho target.
+    """
+    policy = context.policy
+    now = context.now_minute
+    windows = context.active_windows
+    window = windows[index]
+
+    # Deadline đúng 00:00 thuộc ngày trước đó.
+    deadline_day = (target.deadline - 1) // 1440
+    day = window.start // 1440
+
+    if day > deadline_day:
+        return 0, 0
+
+    previous_end = max(
+        (
+            other.end
+            for other_index, other in enumerate(windows)
+            if other_index != index and other.end <= window.start
+        ),
+        default=0,
+    )
+
+    next_start = min(
+        (
+            other.start
+            for other_index, other in enumerate(windows)
+            if other_index != index and other.start >= window.end
+        ),
+        default=WEEK,
+    )
+
+    lower = max(
+        day * 1440,
+        previous_end,
+        now,
+        window.start - policy.max_earlier_minutes,
+    )
+
+    earlier = max(0, window.start - lower)
+
+    if window.end <= now:
+        later = 0
+    else:
+        upper = min(
+            (day + 1) * 1440,
+            next_start,
+            window.end + policy.max_later_minutes,
+        )
+
+        if day == deadline_day:
+            upper = min(upper, target.deadline)
+
+        later = max(0, upper - window.end)
+
+    return earlier, later
+
+
 def relax_candidates(context, target):
+    """Phương án dự phòng (ReferenceScheduler), nới từng bước.
+
+    Giai đoạn 1: xóa các sự kiện "xóa được khi bận", gần deadline trước.
+    Giai đoạn 2: nới giờ thức/ngủ từ sát deadline lùi dần:
+      - ngày deadline: chỉ dậy sớm hơn (và thức muộn hơn nếu deadline
+        còn sau giờ ngủ);
+      - các ngày trước: thức khuya hơn và dậy sớm hơn.
+    Mỗi lần thêm một thay đổi là một đề xuất; resolve() chọn đề xuất đầu
+    tiên mà engine xếp được đủ.
+    """
     candidate = context.model_copy(deep=True)
     changes = []
-
-    eligible = sorted(
-        (
-            fixed
-            for fixed in candidate.fixed_tasks
-            if fixed.can_shorten
-            and fixed.interval.start >= context.now_minute
-            and fixed.interval.start < target.deadline
-            and fixed.interval.end > target.earliest_start
-            and (
-                fixed.interval.end - fixed.interval.start
-                > fixed.min_duration
-            )
-        ),
-        key=lambda fixed: (
-            -fixed.interval.start,
-            fixed.id,
-        ),
-    )
 
     def proposal():
         return (
             candidate.model_copy(deep=True),
             {
-                "changes": [
-                    dict(change)
-                    for change in changes
-                ]
+                "changes": [dict(change) for change in changes],
             },
             (
-                "Rút fixed về min_duration trước, "
-                "rồi mở giờ thức từ ngày deadline lùi dần."
+                "Xóa các sự kiện đã cho phép xóa khi bận, rồi nới giờ "
+                "thức/ngủ từ sát deadline lùi dần."
             ),
             [
                 "Cần người dùng chọn trước khi "
-                "đổi giờ sinh hoạt."
+                "đổi giờ sinh hoạt hoặc xóa sự kiện."
             ],
         )
 
-    # Giai đoạn 1: rút fixed, thay đổi được cộng dồn.
-    for fixed in eligible:
-        old_end = fixed.interval.end
+    # Giai đoạn 1: xóa sự kiện, từ sát deadline trở về trước.
+    groups = _occurrence_groups(context)
 
-        fixed.interval.end = (
-            fixed.interval.start
-            + fixed.min_duration
-        )
+    eligible = sorted(
+        (
+            (key, pieces)
+            for key, pieces in groups.items()
+            if _removable(pieces, context, target)
+        ),
+        key=lambda item: -min(
+            piece.interval.start for piece in item[1]
+        ),
+    )
 
-        changes.append(
-            {
-                "operation": "SHORTEN_FIXED",
-                "task_id": fixed.id,
-                "old_end": old_end,
-                "new_end": fixed.interval.end,
-            }
-        )
+    for key, pieces in eligible:
+        candidate.fixed_tasks = [
+            fixed
+            for fixed in candidate.fixed_tasks
+            if (fixed.group or fixed.id) != key
+        ]
+
+        changes.append(remove_change(key, pieces))
 
         yield proposal()
 
-    # Deadline đúng 00:00 thuộc ngày trước đó.
+    # Giai đoạn 2: nới giờ thức/ngủ từ ngày deadline lùi dần.
     deadline_day = (target.deadline - 1) // 1440
 
-    # Giai đoạn 2: nới giờ thức cộng dồn từng ngày.
     for day in range(deadline_day, -1, -1):
         indices = sorted(
             range(len(candidate.active_windows)),
-            key=lambda index: (
-                candidate.active_windows[index].start
-            ),
+            key=lambda index: candidate.active_windows[index].start,
         )
 
         for index in indices:
@@ -169,80 +252,63 @@ def relax_candidates(context, target):
             if window.end <= context.now_minute:
                 continue
 
-            previous_end = max(
-                (
-                    item.end
-                    for other_index, item
-                    in enumerate(candidate.active_windows)
-                    if other_index != index
-                    and item.end <= window.start
-                ),
-                default=0,
-            )
+            earlier, later = _window_room(candidate, target, index)
 
-            next_start = min(
-                (
-                    item.start
-                    for other_index, item
-                    in enumerate(candidate.active_windows)
-                    if other_index != index
-                    and item.start >= window.end
-                ),
-                default=WEEK,
-            )
-
-            start = max(
-                day * 1440,
-                previous_end,
-                context.now_minute,
-                (
-                    window.start
-                    - context.policy.max_earlier_minutes
-                ),
-            )
-
-            start = min(start, window.start)
-
-            end = min(
-                (day + 1) * 1440,
-                next_start,
-                (
-                    window.end
-                    + context.policy.max_later_minutes
-                ),
-            )
-
-            if (start, end) == (
-                window.start,
-                window.end,
-            ):
+            if earlier == 0 and later == 0:
                 continue
 
-            window.start = start
-            window.end = end
+            window.start -= earlier
+            window.end += later
 
             changes.append(
                 {
                     "operation": "EXPAND_ACTIVE_WINDOW",
                     "window_index": index,
-                    "new_start": start,
-                    "new_end": end,
+                    "new_start": window.start,
+                    "new_end": window.end,
+                    "earlier_minutes": earlier,
+                    "later_minutes": later,
                 }
             )
 
         if (
             changes
-            and changes[-1]["operation"]
-            == "EXPAND_ACTIVE_WINDOW"
+            and changes[-1]["operation"] == "EXPAND_ACTIVE_WINDOW"
         ):
             yield proposal()
+
+
+def remove_change(key, pieces):
+    """Mô tả việc xóa một lần diễn ra (gồm cả mảnh chuẩn bị/đi về)."""
+    mains = [piece for piece in pieces if not piece.ancillary] or pieces
+    main = min(mains, key=lambda piece: piece.interval.start)
+
+    return {
+        "operation": "REMOVE_FIXED",
+        "group": key,
+        "name": main.name,
+        "task_ids": [piece.id for piece in pieces],
+        "start": main.interval.start,
+        "end": max(piece.interval.end for piece in mains),
+        "removed_minutes": sum(
+            piece.interval.end - piece.interval.start
+            for piece in pieces
+        ),
+    }
+
+
 def relaxation_blocks(context, target):
-    """Dựng khoảng bị chặn co được cho option 3 (CoreScheduler).
+    """Dựng khoảng bị chặn cho option 3 (CoreScheduler).
 
     Trả về (blocks, sources). sources[i] mô tả blocks[i]:
-      ("fixed", task_id)               rút đuôi một sự kiện cố định
+      ("fixed", task_id)               một mảnh sự kiện cố định (có thể bị xóa)
       ("gap", window_trước, window_sau) khoảng ngủ giữa hai cửa sổ thức
       ("static",)                      phần đã qua, không đổi được
+
+    Hai cách nới:
+      1. XÓA hẳn các lần diễn ra "xóa được khi bận" (không rút ngắn).
+      2. Nới giờ thức/ngủ; giá mỗi phút tăng theo số ngày cách ngày
+         deadline, nên solver nới sát deadline trước.
     """
     from scheduling_algorithm.core_algorithm.models import ElasticBlock
 
@@ -256,7 +322,13 @@ def relaxation_blocks(context, target):
     blocks = []
     sources = []
 
-    # 1. Sự kiện cố định: giữ start, chỉ rút end về tối thiểu min_duration.
+    # 1. Sự kiện cố định: hoặc giữ nguyên, hoặc xóa cả lần diễn ra.
+    removable_keys = {
+        key
+        for key, pieces in _occurrence_groups(context).items()
+        if _removable(pieces, context, target)
+    }
+
     for fixed in context.fixed_tasks:
         start = fixed.interval.start
         end = fixed.interval.end
@@ -264,86 +336,40 @@ def relaxation_blocks(context, target):
         if end <= now:
             continue
 
-        eligible = (
-            fixed.can_shorten
-            and start >= now
-            and start < target.deadline
-            and end > target.earliest_start
-        )
-
-        cut_max = (
-            end - start - fixed.min_duration
-            if eligible
-            else 0
-        )
+        key = fixed.group or fixed.id
 
         blocks.append(
             ElasticBlock(
                 start,
                 end,
                 0,
-                max(0, cut_max),
-                price=policy.fixed_cut_cost_per_minute,
+                0,
                 touch=policy.event_touch_penalty,
                 group="event",
+                removable=key if key in removable_keys else None,
+                remove_price=policy.remove_cost_per_minute,
             )
         )
         sources.append(("fixed", fixed.id))
 
     # 2. Mức nới tối đa của từng cửa sổ thức (sớm hơn, muộn hơn).
-    def limits(index):
-        window = windows[index]
-        day = window.start // 1440
+    bounds = {
+        index: _window_room(context, target, index)
+        for index in range(len(windows))
+    }
 
-        if day > deadline_day:
-            return 0, 0
+    def tier_price(index):
+        """Giá mỗi phút nới cửa sổ `index`: càng xa deadline càng đắt."""
+        tier = max(0, deadline_day - windows[index].start // 1440)
 
-        previous_end = max(
-            (
-                other.end
-                for other_index, other in enumerate(windows)
-                if other_index != index
-                and other.end <= window.start
-            ),
-            default=0,
+        return (
+            policy.sleep_cost_per_minute
+            + policy.sleep_tier_step_cost * tier
         )
-
-        next_start = min(
-            (
-                other.start
-                for other_index, other in enumerate(windows)
-                if other_index != index
-                and other.start >= window.end
-            ),
-            default=WEEK,
-        )
-
-        lower = max(
-            day * 1440,
-            previous_end,
-            now,
-            window.start - policy.max_earlier_minutes,
-        )
-
-        earlier = max(0, window.start - lower)
-
-        if window.end <= now:
-            later = 0
-        else:
-            upper = min(
-                (day + 1) * 1440,
-                next_start,
-                window.end + policy.max_later_minutes,
-            )
-            later = max(0, upper - window.end)
-
-        return earlier, later
-
-    bounds = {index: limits(index) for index in range(len(windows))}
 
     # 3. Giờ ngủ = khoảng ngoài các cửa sổ thức.
-    #    Nới cửa sổ trước = đẩy đầu trái khoảng ngủ sang phải,
-    #    nới cửa sổ sau   = kéo đầu phải khoảng ngủ sang trái.
+    #    Nới cửa sổ trước (thức khuya hơn)  = đẩy đầu trái khoảng ngủ sang phải,
+    #    nới cửa sổ sau   (dậy sớm hơn)     = kéo đầu phải khoảng ngủ sang trái.
     order = sorted(
         range(len(windows)),
         key=lambda index: windows[index].start,
@@ -385,6 +411,12 @@ def relaxation_blocks(context, target):
                 min(left_max, length),
                 min(right_max, length),
                 price=policy.sleep_cost_per_minute,
+                left_price=(
+                    tier_price(before) if before is not None else None
+                ),
+                right_price=(
+                    tier_price(after) if after is not None else None
+                ),
                 touch=policy.event_touch_penalty,
                 group="gap",
             )
@@ -392,4 +424,3 @@ def relaxation_blocks(context, target):
         sources.append(("gap", before, after))
 
     return blocks, sources
-

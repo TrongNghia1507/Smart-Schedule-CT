@@ -23,6 +23,7 @@ class TaskInputService:
             raw=dict(raw)
             raw.setdefault('prep_min',existing.prep_min)
             raw.setdefault('after_min',existing.after_min)
+            raw.setdefault('removable_when_busy','Có' if existing.removable else 'Không')
         task,report=TaskFactory.from_raw(raw,fixed)
         if not task:return report
         candidate=deepcopy(self.data)

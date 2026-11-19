@@ -276,6 +276,47 @@ class CoreScheduler:
             solver_status=result.status,
         )
 
+    @staticmethod
+    def provably_infeasible(context):
+        """Điều kiện cần để xếp đủ mọi task: với mỗi khoảng [a, b], tổng
+        thời lượng (cộng buffer) của các task nằm trọn trong khoảng đó
+        không vượt quá thời gian trống.
+
+        Trả True nghĩa là CHẮC CHẮN vô nghiệm. Trả False chỉ nghĩa là
+        chưa loại được. Bước này rẻ, và giúp tránh để CP-SAT tốn thời gian
+        chứng minh vô nghiệm với các bài có nhiều chunk (dễ báo UNKNOWN).
+        """
+        slots = free_slots(context)
+        now = context.now_minute
+
+        def free_in(left, right):
+            return sum(
+                max(0, min(end, right) - max(start, left))
+                for start, end in slots
+            )
+
+        starts = {
+            max(now, task.earliest_start) for task in context.tasks
+        }
+        ends = {task.deadline for task in context.tasks}
+
+        for left in starts:
+            for right in ends:
+                if right <= left:
+                    continue
+
+                demand = sum(
+                    task.remaining_min + task.buffer_min
+                    for task in context.tasks
+                    if max(now, task.earliest_start) >= left
+                    and task.deadline <= right
+                )
+
+                if demand > free_in(left, right):
+                    return True
+
+        return False
+
     def plan(
         self,
         context,
@@ -287,6 +328,24 @@ class CoreScheduler:
     ):
         from scheduling_algorithm.core_algorithm.models import FixedTask
         from scheduling_algorithm.core_algorithm.solve import solve
+
+        # Vô nghiệm hiển nhiên: trả lời ngay thay vì chờ CP-SAT chứng minh.
+        if (
+            self.require_all
+            and compress_id is None
+            and self.provably_infeasible(context)
+        ):
+            self.last_status = "INFEASIBLE"
+
+            return PlanResult(
+                status="NOT_FOUND",
+                chunks=[],
+                unscheduled={
+                    task.id: task.remaining_min
+                    for task in context.tasks
+                },
+                solver_status="INFEASIBLE",
+            )
 
         # free_slots đã trừ fixed task và thời gian đã qua.
         # Gộp khoảng liền nhau để không tạo ranh giới giả.
@@ -389,7 +448,8 @@ class CoreScheduler:
     def plan_relaxed(self, context, blocks, *, step=15):
         """Một lần giải: nới ít nhất để xếp đủ mọi task.
 
-        Trả về (PlanResult, {block_index: (cắt_trái, cắt_phải)}).
+        Trả về (PlanResult, {block_index: (cắt_trái, cắt_phải)},
+        {khóa nhóm fixed bị xóa}).
         """
         from scheduling_algorithm.core_algorithm.solve import solve
 
@@ -402,4 +462,8 @@ class CoreScheduler:
             step=step,
         )
 
-        return self._plan_result(context, result), result.elastic
+        return (
+            self._plan_result(context, result),
+            result.elastic,
+            result.removed,
+        )

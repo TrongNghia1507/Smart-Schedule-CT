@@ -222,13 +222,40 @@ def value_of(solver, item):
 
 
 def add_elastic(model, blocks, step):
-    """Trả về (cuts, groups, cost). Slot = 1 phút nên dùng phút trực tiếp."""
+    """Trả về (cuts, groups, cost, removed). Slot = 1 phút nên dùng phút trực tiếp.
+
+    removed: {khóa nhóm: BoolVar}; BoolVar = 1 nghĩa là cả nhóm bị xóa.
+    """
     groups = {}
     cuts = {}
     cost = []
+    removed = {}
 
     for index, block in enumerate(blocks):
         length = block.end - block.start
+
+        if block.removable is not None:
+            key = block.removable
+
+            if key not in removed:
+                removed[key] = model.NewBoolVar(f"removed_{key}")
+                # Phạt một lần cho mỗi nhóm bị xóa (đụng vào sự kiện).
+                if block.touch > 0:
+                    cost.append(block.touch * removed[key])
+
+            gone = removed[key]
+            interval = model.NewOptionalIntervalVar(
+                block.start,
+                length,
+                block.end,
+                gone.Not(),
+                f"block_{index}",
+            )
+            cost.append(block.remove_price * length * gone)
+
+            groups.setdefault(block.group, []).append(interval)
+            cuts[index] = (0, 0)
+            continue
 
         left = stepped(model, block.left_max, step, f"left_{index}")
         right = stepped(model, block.right_max, step, f"right_{index}")
@@ -240,14 +267,27 @@ def add_elastic(model, blocks, step):
         else:
             model.Add(left + right <= length)
 
+            # Khi cả hai đầu cùng co, `length - left - right` là tổng của
+            # hai biến nên không phải biểu thức affine: dùng biến riêng.
+            size = model.NewIntVar(0, length, f"size_{index}")
+            model.Add(size == length - left - right)
+
             interval = model.NewIntervalVar(
                 block.start + left,
-                length - left - right,
+                size,
                 block.end - right,
                 f"block_{index}",
             )
 
-            cost.append(block.price * (left + right))
+            left_price = (
+                block.price if block.left_price is None
+                else block.left_price
+            )
+            right_price = (
+                block.price if block.right_price is None
+                else block.right_price
+            )
+            cost.append(left_price * left + right_price * right)
 
             if block.touch > 0:
                 touched = model.NewBoolVar(f"touched_{index}")
@@ -258,7 +298,7 @@ def add_elastic(model, blocks, step):
         groups.setdefault(block.group, []).append(interval)
         cuts[index] = (left, right)
 
-    return cuts, groups, sum(cost)
+    return cuts, groups, sum(cost), removed
 
 
 def add_hint(model, tasks, present, chunks, hint, cfg):
@@ -382,11 +422,14 @@ def solve(
     # mỗi nhóm một AddNoOverlap cùng với chunk và buffer.
     relax_cost = 0
     cuts = {}
+    removed = {}
 
     if elastic is None:
         model.AddNoOverlap(intervals)
     else:
-        cuts, groups, relax_cost = add_elastic(model, elastic, step)
+        cuts, groups, relax_cost, removed = add_elastic(
+            model, elastic, step
+        )
 
         if not groups:
             model.AddNoOverlap(intervals)
@@ -479,6 +522,12 @@ def solve(
             ]
 
             result.chunks[task.id] = sorted(pieces)
+
+        result.removed = {
+            key
+            for key, flag in removed.items()
+            if solver.BooleanValue(flag)
+        }
 
         for index, (left, right) in cuts.items():  # MỚI
             result.elastic[index] = (

@@ -39,25 +39,15 @@ class ConflictTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report.status, "CONFLICT")
         self.assertEqual(report.deficit_minutes, 60)
 
-        self.assertTrue(options[1].is_available)
+        # Task bắt buộc không được bỏ khỏi tuần.
+        self.assertFalse(options[1].is_available)
         self.assertTrue(options[2].is_available)
-        self.assertFalse(options[3].is_available)
-        self.assertTrue(options[4].is_available)
-
-    async def test_soft_task_can_be_postponed(self):
-        context = load_context()
-
-        context.tasks[0].kind = "soft"
-        context.tasks[0].max_postpone_minutes = 1440
-
-        report = await resolve(
-            context,
-            ReferenceScheduler(),
-            Settings(ai_enabled=False),
+        # Xóa "Chạy bộ" (đánh dấu xóa được khi bận) giải phóng chỗ cho LAB.
+        self.assertTrue(options[3].is_available)
+        self.assertEqual(
+            options[3].action_payload["changes"][0]["operation"],
+            "REMOVE_FIXED",
         )
-
-        self.assertEqual(report.options[0].option_id, 3)
-        self.assertTrue(report.options[0].is_available)
 
     async def test_fragmented_slots_are_not_enough(self):
         context = load_context()

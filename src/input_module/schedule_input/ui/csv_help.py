@@ -28,13 +28,13 @@ def render_csv_help(window,lang='vi'):
             st.markdown('''| Type | Required fields | Optional fields and defaults |
 | --- | --- | --- |
 | Both | `task_type`, `name` | |
-| `fixed` | `start`, `end`; `repeat` or `one_off_date` | `prep_min`: 0–90 (0); `after_min`: 0–60 (0); `is_flexible`: Yes/No (No); `min_duration_min`: full duration |
+| `fixed` | `start`, `end`; `repeat` or `one_off_date` | `prep_min`: 0–90 (0); `after_min`: 0–60 (0); `is_flexible`: Yes/No (No); `min_duration_min`: full duration; `removable_when_busy`: Yes/No (No) |
 | `deadline` | `deadline`; `remaining_min` | `mandatory`: Yes/No (Yes); `importance`: 1–3 (2); `focus`: high/low (high); `buffer_min`: 0–60, multiple of 5 (15); `earliest_start`; `chunk_min`, `chunk_max`: high 45/90, low 30/60 |''')
         else:
             st.markdown('''| Loại | Cột bắt buộc | Cột tùy chọn và mặc định |
 | --- | --- | --- |
 | Cả hai | `task_type`, `name` | |
-| `fixed` | `start`, `end`; `repeat` hoặc `one_off_date` | `prep_min`: 0–90 (0); `after_min`: 0–60 (0); `is_flexible`: Có/Không (Không); `min_duration_min`: toàn bộ thời lượng |
+| `fixed` | `start`, `end`; `repeat` hoặc `one_off_date` | `prep_min`: 0–90 (0); `after_min`: 0–60 (0); `is_flexible`: Có/Không (Không); `min_duration_min`: toàn bộ thời lượng; `removable_when_busy`: Có/Không (Không) — cho phép hệ thống đề xuất xóa việc này khi xử lý conflict |
 | `deadline` | `deadline`; `remaining_min` | `mandatory`: Có/Không (Có); `importance`: 1–3 (2); `focus`: high/low (high); `buffer_min`: 0–60, chia hết cho 5 (15); `earliest_start`; `chunk_min`, `chunk_max`: high 45/90, low 30/60 |''')
         st.markdown(
             'Times: `HH:mm` (`end` also accepts `24:00`). Dates: `dd/mm/yyyy`. Deadlines and earliest starts: '

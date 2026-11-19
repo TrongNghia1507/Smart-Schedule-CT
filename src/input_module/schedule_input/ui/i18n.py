@@ -18,6 +18,8 @@ EN = {
     'Giờ bắt đầu (HH:mm)': 'Start time (HH:mm)',
     'Giờ kết thúc (cho phép 24:00)': 'End time (24:00 allowed)',
     'Có thể chia nhỏ và co dãn': 'Allow splitting and shortening',
+    'Có thể xóa khi bận': 'Removable when busy',
+    'Khi một việc có hạn bị xung đột, hệ thống được phép đề xuất xóa lần diễn ra này (vào ngày hạn chót và các ngày trước đó) để lấy chỗ.': 'When a deadline task conflicts, the system may propose deleting this occurrence (on the deadline day and earlier days) to free the time.',
     'Thời lượng tối thiểu (phút)': 'Minimum duration (minutes)',
     'Bắt buộc': 'Mandatory', 'Mức quan trọng': 'Importance',
     'Bắt buộc: phải xếp đủ, không bỏ khỏi tuần, không dời hạn chót · Không bắt buộc: có thể bỏ khỏi tuần, hạn chót cố định là hết Chủ nhật': 'Mandatory: must be fully scheduled, never dropped from the week, deadline never moved · Optional: may be dropped from the week, deadline fixed at end of Sunday',

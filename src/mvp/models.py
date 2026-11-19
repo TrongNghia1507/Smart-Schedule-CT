@@ -34,6 +34,7 @@ class Fixed:
     end: int
     min_elastic: Optional[int] = None    # shortest it may be shrunk to (None = cannot shrink)
     type: str = "other"                  # study | meal | leisure | sleep | attend | prep | other
+    removable: bool = False              # được phép xóa lần diễn ra này khi xử lý conflict
 
 
 @dataclass(frozen=True)

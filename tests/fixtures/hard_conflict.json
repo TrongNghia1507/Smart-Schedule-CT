@@ -29,8 +29,10 @@
         "end": 600
       },
       "importance": 1,
-      "can_shorten": true,
-      "min_duration": 15
+      "can_shorten": false,
+      "min_duration": 15,
+      "can_remove": true,
+      "group": "run"
     }
   ],
   "active_windows": [

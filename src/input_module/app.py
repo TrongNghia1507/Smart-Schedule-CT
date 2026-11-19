@@ -78,6 +78,7 @@ def editor(fixed,id=None):
         row['prep_min']=st.slider('Thời gian chuẩn bị (phút)' if language()=='vi' else 'Preparation time (minutes)',0,90,int(raw.get('prep_min') or 0),key=key+'prep')
         row['after_min']=st.slider('Thời gian dự trù sau công việc (phút)' if language()=='vi' else 'Time reserved after task (minutes)',0,60,int(raw.get('after_min') or 0),key=key+'after')
         row['is_flexible']=st.toggle(tr('Có thể chia nhỏ và co dãn'),value=raw.get('is_flexible')=='Có',key=key+'flex')
+        row['removable_when_busy']=st.toggle(tr('Có thể xóa khi bận'),value=raw.get('removable_when_busy')=='Có',key=key+'removable',help=tr('Khi một việc có hạn bị xung đột, hệ thống được phép đề xuất xóa lần diễn ra này (vào ngày hạn chót và các ngày trước đó) để lấy chỗ.'))
         duration=1440
         try:
             duration=TimeRange(DateTimeParser.time(row['start']),DateTimeParser.time(row['end'],True)).duration_min();st.caption(tr(f'Thời lượng: {duration} phút'))

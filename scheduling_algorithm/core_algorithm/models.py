@@ -67,6 +67,12 @@ class ElasticBlock:
     price: int = 0         # giá mỗi phút nới
     touch: int = 0         # phạt một lần nếu khoảng này bị đụng
     group: str = "event"   # "event" hoặc "gap": mỗi nhóm một AddNoOverlap
+    left_price: int | None = None    # giá mỗi phút co ở đầu trái (mặc định = price)
+    right_price: int | None = None   # giá mỗi phút co ở đầu phải (mặc định = price)
+    # Khoảng có thể XÓA hẳn (không co). Các block cùng khóa bị xóa cùng nhau
+    # (sự kiện + thời gian chuẩn bị/đi lại của nó).
+    removable: str | None = None
+    remove_price: int = 0  # giá mỗi phút của khoảng bị xóa
 
 
 @dataclass
@@ -76,3 +82,4 @@ class SolveResult:
     chunks: dict[int, list[tuple[int, int]]] = field(default_factory=dict)
     solve_time: float = 0.0
     elastic: dict[int, tuple[int, int]] = field(default_factory=dict)   # MỚI
+    removed: set[str] = field(default_factory=set)   # khóa các nhóm đã bị xóa

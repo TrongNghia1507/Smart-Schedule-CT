@@ -84,6 +84,7 @@ class FixedTask(Task):
     repeat:RepeatRule; time_range:TimeRange; is_flexible:bool; flexibility:Flexibility; is_sleep:bool=False
     prep_min:int=0
     after_min:int=0
+    removable:bool=False   # có thể xóa khi bận (khi xử lý conflict)
     @property
     def duration_min(self): return self.time_range.duration_min()
     def occupied_occurrences(self,week_start):
