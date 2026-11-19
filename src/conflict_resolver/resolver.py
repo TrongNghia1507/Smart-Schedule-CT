@@ -6,7 +6,7 @@ from .strategies.options import (
     relax_candidates,
     relaxation_blocks,
 )
-
+from .errors import SolverInconclusive
 
 STRATEGIES = [
     (1, "EXCLUDE_FROM_WEEK", exclude_candidates),
@@ -206,6 +206,14 @@ def optimized_relaxation(context, target, scheduler):
         ],
         result,
     )
+def compute_deficit(context, target, scheduler, baseline):
+    """Số phút thiếu thật của target."""
+    if scheduler.name != "core-cp-sat":
+        return sum(baseline.unscheduled.values())
+
+    placeable = scheduler.max_placeable(context, target.id)
+
+    return target.remaining_min - placeable
 async def resolve(context, scheduler, settings):
     target = next(
         task
@@ -214,6 +222,10 @@ async def resolve(context, scheduler, settings):
     )
 
     baseline = scheduler.plan(context)
+    if baseline.status == "UNKNOWN":
+        raise SolverInconclusive(
+            "Chưa phân tích được conflict: solver hết thời gian."
+            )
 
     if baseline.status == "FEASIBLE":
         return ConflictReport(
@@ -328,8 +340,11 @@ async def resolve(context, scheduler, settings):
         conflict_id=context.conflict_id,
         schedule_version=context.schedule_version,
         status="CONFLICT",
-        deficit_minutes=sum(
-            baseline.unscheduled.values()
+        deficit_minutes=compute_deficit(
+            context,
+            target,
+            scheduler,
+            baseline,
         ),
         ai_status=ai_status,
         verification_engine=scheduler.name,

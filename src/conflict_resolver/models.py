@@ -125,10 +125,13 @@ class Chunk(Model):
 
 
 class PlanResult(Model):
-    status: Literal["FEASIBLE", "NOT_FOUND"]
+    status: Literal["FEASIBLE", "NOT_FOUND", "UNKNOWN"]
     chunks: list[Chunk]
     unscheduled: dict[str, int]
-
+    solver_status: str | None = None   # trạng thái gốc của CP-SAT, để hiển thị/debug
+    @property
+    def proven_optimal(self) -> bool:
+        return self.solver_status == "OPTIMAL"
 
 class Option(Model):
     option_id: int

@@ -3,7 +3,7 @@ import json
 
 import streamlit as st
 from .presentation import describe_changes
-
+from .errors import SolverInconclusive
 from .ai.advisor import get_settings
 from .models import Policy
 from .planning import (
@@ -69,8 +69,20 @@ def render(snapshot):
     if st.session_state.get("planning_snapshot") != token:
         return
 
-    result = session.plan()
-
+    try:
+        result = session.plan()
+    except SolverInconclusive as exc:
+        st.warning(str(exc))
+        if st.button("Thử lại"):
+            st.rerun()
+        return
+    if result.proven_optimal:
+        st.caption("Lịch đã được chứng minh tối ưu.")
+    else:
+        st.caption(
+            "Đây là lịch tốt nhất tìm được trong thời gian giới hạn. "
+            "Có thể vẫn còn cách xếp giữ lại được nhiều task hơn."
+        )
     names = {
         task.id: task.name
         for task in session.context.tasks

@@ -16,7 +16,12 @@ from .models import (
 from .scheduler import CoreScheduler
 from .resolver import resolve
 
+BASELINE_TIME_LIMIT = 10.0
 
+engine = CoreScheduler(
+    require_all=False,
+    time_limit=BASELINE_TIME_LIMIT,
+)
 def context_from_snapshot(snapshot, policy=None):
     raw, meta = snapshot_to_raw(snapshot)
 
@@ -121,7 +126,7 @@ def context_from_snapshot(snapshot, policy=None):
         policy=policy or Policy(),
     )
 
-
+from .errors import SolverInconclusive
 @dataclass
 class PlanningSession:
     context: ConflictContext
@@ -131,15 +136,21 @@ class PlanningSession:
     hint_chunks: list = field(default_factory=list)
     def plan(self):
         if self.cached_plan is None:
-            engine = CoreScheduler(
-                require_all=False
-            )
+            engine = CoreScheduler(require_all=False, time_limit=5.0)  # xem ghi chú bên dưới
 
-            self.cached_plan = engine.plan(
+            result = engine.plan(
                 self.context,
                 required_ids=self.protected_ids,
-                hint=self.hint_chunks, 
+                hint=self.hint_chunks,
             )
+
+            if result.status == "UNKNOWN":
+                raise SolverInconclusive(
+                    "Solver hết thời gian trước khi tìm được lịch. "
+                    "Hãy thử lại hoặc giảm số task."
+                )
+
+            self.cached_plan = result
 
         return self.cached_plan
 
@@ -302,10 +313,14 @@ class PlanningSession:
                 hint=hint,
             )
 
+            if result.status == "UNKNOWN":
+                raise SolverInconclusive(
+                    "Chưa kiểm chứng được lựa chọn do hết thời gian; chưa thay đổi lịch."
+                )
+
             if result.status != "FEASIBLE":
                 raise ValueError(
-                    "Lựa chọn chưa xếp được đầy đủ; "
-                    "chưa thay đổi lịch."
+                    "Lựa chọn chưa xếp được đầy đủ; chưa thay đổi lịch."
                 )
 
             kept_chunks = list(result.chunks)

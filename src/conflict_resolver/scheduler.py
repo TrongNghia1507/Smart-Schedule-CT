@@ -2,7 +2,7 @@ from typing import Protocol
 
 from .models import Chunk, ConflictContext, PlanResult
 
-
+INCONCLUSIVE = {"UNKNOWN", "MODEL_INVALID"}
 class SchedulerPort(Protocol):
     name: str
 
@@ -236,6 +236,14 @@ class CoreScheduler:
         return pieces or None
 
     def _plan_result(self, context, result):
+        self.last_status = result.status
+        if result.status in INCONCLUSIVE:
+            return PlanResult(
+                status="UNKNOWN",
+                chunks=[],
+                unscheduled={},
+                solver_status=result.status,
+            )
         chunks = [
             Chunk(
                 task_id=context.tasks[index].id,
@@ -265,6 +273,7 @@ class CoreScheduler:
             ),
             chunks=chunks,
             unscheduled=unscheduled,
+            solver_status=result.status,
         )
 
     def plan(
@@ -349,6 +358,33 @@ class CoreScheduler:
         )
 
         return self._plan_result(context, result)
+        
+    def max_placeable(self, context, target_id):
+        """Số phút lớn nhất của target còn xếp được khi giữ nguyên
+        các task khác. Dùng để đo thiếu hụt thật."""
+        target = next(
+            task
+            for task in context.tasks
+            if task.id == target_id
+        )
+
+        if target.remaining_min <= 1:
+            return 0
+
+        result = self.plan(
+            context,
+            compress_id=target_id,
+            compression_min=1,
+        )
+
+        if result.status != "FEASIBLE":
+            return 0
+
+        return sum(
+            chunk.end - chunk.start
+            for chunk in result.chunks
+            if chunk.task_id == target_id
+        )
 
     def plan_relaxed(self, context, blocks, *, step=15):
         """Một lần giải: nới ít nhất để xếp đủ mọi task.
