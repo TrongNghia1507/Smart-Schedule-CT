@@ -41,7 +41,12 @@ class TaskFactory:
             after=read('after_min',lambda v:bounded(v,0,60),'F10',0)
             if r.has_errors():return None,r
             return FixedTask(id,name,RepeatRule(days,day),tr,flex,Flexibility(minimum,duration),sleep,prep,after),r
-        kind=read('kind',TaskKind,'V02'); focus=read('focus',FocusLevel,'V02','high')
+            if raw.get('mandatory') is None or str(raw.get('mandatory')).strip()=='':
+            # Dữ liệu cũ (còn cột kind): soft = không bắt buộc, còn lại = bắt buộc
+                legacy=str(raw.get('kind') or '').strip().casefold()
+                if legacy:raw=dict(raw,mandatory='Không' if legacy=='soft' else 'Có')
+        mandatory=read('mandatory',BoolParser.parse,'V02','Có')
+        focus=read('focus',FocusLevel,'V02','high')
         importance=read('importance',lambda v:bounded(v,1,3),'V03',2)
         deadline=read('deadline',DateTimeParser.parse,'V04')
         remaining=read('remaining_min',lambda v:bounded(v,1,10**9),'V08')
@@ -51,7 +56,7 @@ class TaskFactory:
         mn=read('chunk_min',lambda v:bounded(v,1,10**9),'V11',defaults[0]); mx=read('chunk_max',lambda v:bounded(v,1,10**9),'V11',defaults[1])
         if mn and mx and mn>mx:r.add('V11',Severity.ERROR,'chunk_max',id,'Chunk max phải lớn hơn hoặc bằng min.')
         if r.has_errors():return None,r
-        return DeadlineTask(id,name,kind,importance,deadline,remaining,focus,buffer,early,ChunkPolicy(mn,mx)),r
+        return DeadlineTask(id,name,mandatory,importance,deadline,remaining,focus,buffer,early,ChunkPolicy(mn,mx)),r
     @staticmethod
     def to_dict(t):
         row={'id':t.id,'name':t.name}
@@ -60,7 +65,7 @@ class TaskFactory:
             row['after_min']=t.after_min
             row.update(repeat_days=[d.value for d in Weekday if d in t.repeat.days],one_off_date=t.repeat.one_off_date.isoformat() if t.repeat.one_off_date else None,start=hh(t.time_range.start),end=hh(t.time_range.end),is_flexible=t.is_flexible,min_duration_min=t.flexibility.min_min if t.is_flexible else None)
         else:
-            row.update(kind=t.kind.value,importance=t.importance,deadline=t.deadline.isoformat(timespec='minutes'),remaining_min=t.remaining_min,focus=t.focus.value,buffer_min=t.buffer.minutes,earliest_start=t.earliest_start.isoformat(timespec='minutes') if t.earliest_start else None,chunk_min=t.chunk.min_min,chunk_max=t.chunk.max_min)
+            row.update(mandatory=t.mandatory,importance=t.importance,deadline=t.deadline.isoformat(timespec='minutes'),remaining_min=t.remaining_min,focus=t.focus.value,buffer_min=t.buffer.minutes,earliest_start=t.earliest_start.isoformat(timespec='minutes') if t.earliest_start else None,chunk_min=t.chunk.min_min,chunk_max=t.chunk.max_min)
         return row
     @staticmethod
     def to_row_view(t):

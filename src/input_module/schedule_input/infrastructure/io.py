@@ -4,8 +4,8 @@ from datetime import datetime,date
 from ..application.mapper import TaskFactory
 from ..domain.models import *
 
-FIELDS={True:['name','repeat','start','end','is_flexible','min_duration_min','one_off_date','prep_min','after_min'],False:['name','kind','importance','deadline','remaining_min','focus','buffer_min','earliest_start','chunk_min','chunk_max']}
-ALIASES={'Tên':'name','Tên công việc (name)':'name','Loại (kind)':'kind','Quan trọng (is_important)':'importance','Hạn chót (deadline)':'deadline','Thời lượng (remaining_min)':'remaining_min','Tập trung (focus)':'focus','Buffer 15p':'buffer_min','Bắt đầu sớm nhất (earliest_start)':'earliest_start','Chunk min':'chunk_min','Chunk max':'chunk_max','Lặp lại':'repeat','Giờ bắt đầu':'start','Giờ kết thúc':'end','Có thể chia ko (OPTIONAL)':'is_flexible','Thời gian co dãn tối thiểu (OPTIONAL)':'min_duration_min'}
+FIELDS={True:['name','repeat','start','end','is_flexible','min_duration_min','one_off_date','prep_min','after_min'],False:['name','mandatory','importance','deadline','remaining_min','focus','buffer_min','earliest_start','chunk_min','chunk_max']}
+ALIASES={'Tên':'name','Tên công việc (name)':'name','Bắt buộc (mandatory)':'mandatory','Quan trọng (is_important)':'importance','Hạn chót (deadline)':'deadline','Thời lượng (remaining_min)':'remaining_min','Tập trung (focus)':'focus','Buffer 15p':'buffer_min','Bắt đầu sớm nhất (earliest_start)':'earliest_start','Chunk min':'chunk_min','Chunk max':'chunk_max','Lặp lại':'repeat','Giờ bắt đầu':'start','Giờ kết thúc':'end','Có thể chia ko (OPTIONAL)':'is_flexible','Thời gian co dãn tối thiểu (OPTIONAL)':'min_duration_min'}
 COMBINED_FIELDS=['task_type',*dict.fromkeys(FIELDS[True]+FIELDS[False])]
 def norm(s):return ' '.join(s.strip().casefold().split())
 class CsvXlsxGateway:

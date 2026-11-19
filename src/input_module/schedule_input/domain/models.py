@@ -4,8 +4,6 @@ from datetime import date, datetime, timedelta
 from enum import Enum
 from uuid import uuid4
 
-class TaskKind(str, Enum):
-    ASAP='asap'; HARD='hard'; SOFT='soft'
 class FocusLevel(str, Enum):
     HIGH='high'; LOW='low'
 class Weekday(str, Enum):
@@ -77,7 +75,7 @@ class Task:
     id:str; name:str
 @dataclass(frozen=True)
 class DeadlineTask(Task):
-    kind:TaskKind; importance:int; deadline:datetime; remaining_min:int; focus:FocusLevel
+    mandatory:bool; importance:int; deadline:datetime; remaining_min:int; focus:FocusLevel
     buffer:BufferPolicy; earliest_start:datetime|None; chunk:ChunkPolicy
     def effective_window(self,now): return max(now,self.earliest_start or now),self.deadline
     def can_split(self): return self.chunk.can_split(self.remaining_min)

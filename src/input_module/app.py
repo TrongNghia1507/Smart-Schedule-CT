@@ -16,19 +16,13 @@ from schedule_input.application.preview import PreviewService
 from schedule_input.application.import_export import ImportExportService
 from schedule_input.infrastructure.repositories import JsonFileRepository
 from schedule_input.infrastructure.io import SampleDataProvider,CsvXlsxGateway,FIELDS
-import sys
 
-_ROOT = Path(__file__).resolve().parents[2]
-
-for _path in (_ROOT, _ROOT / "src"):
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
 st.set_page_config(page_title=tr('Quản lý lịch tuần',st.query_params.get('lang','vi')),page_icon='📅',layout='wide')
 if st.session_state.get('app_version') != 4 or ('service' in st.session_state and type(st.session_state.service.data) is not ScheduleInput):
     st.session_state.clear()
     st.session_state.app_version=4
 if 'service' not in st.session_state:
-    now=datetime.now(); default=ScheduleInput(PlanningWindow(now.date()-timedelta(days=now.weekday()),now))
+    now=datetime.combine(date.today()-timedelta(days=date.today().weekday()),time.min); default=ScheduleInput(PlanningWindow(now.date(),now))
     repo=JsonFileRepository(Path(os.environ.get('SCHEDULE_INPUT_DATA_DIR',str(Path(__file__).parent/'data')))/'schedule_input_draft.json')
     data,override,notes=repo.load(default)
     st.session_state.service=TaskInputService(data,repo,override)
@@ -45,8 +39,8 @@ apply_theme(mode)
 s=st.session_state.service
 preferences_path=s.repository.path.with_name('calendar_colors.json')
 if 'task_colors' not in st.session_state:st.session_state.task_colors=load_colors(preferences_path)
-s.now_override=None
-s.data.window=replace(s.data.window,now=datetime.now())
+s.now_override=datetime.combine(s.data.window.week_start,time.min)
+s.data.window=replace(s.data.window,now=datetime.combine(s.data.window.week_start,time.min))
 
 def refresh():
     st.session_state.pop('snapshot',None)
@@ -131,8 +125,8 @@ def preview_panel():
     from schedule_input.ui.calendar_view import render_calendar
     preview_data=deepcopy(s.data)
     if st.session_state.get('preview_current_week',False):
-        now=datetime.now()
-        preview_data.window=replace(preview_data.window,week_start=now.date()-timedelta(days=now.weekday()),now=now)
+        now=datetime.combine(date.today()-timedelta(days=date.today().weekday()),time.min)
+        preview_data.window=replace(preview_data.window,week_start=now.date(),now=now)
     model=PreviewService().build(preview_data);report=s.review()
     main,side=st.columns([4,1.25],gap='large')
     with main:
@@ -219,7 +213,7 @@ if st.session_state.old_week:
     a,b=st.columns(2)
     if a.button(tr('Giữ tuần cũ')):st.session_state.old_week=False;refresh()
     if b.button(tr('Chuyển sang tuần hiện tại')):
-        now=datetime.now();save_settings(replace(s.data.window,week_start=now.date()-timedelta(days=now.weekday()),now=now),None);st.session_state.old_week=False;refresh()
+        now=datetime.combine(date.today()-timedelta(days=date.today().weekday()),time.min);save_settings(replace(s.data.window,week_start=now.date(),now=now),now);st.session_state.old_week=False;refresh()
     st.stop()
 
 if st.session_state.page=='input':
@@ -233,7 +227,7 @@ if st.session_state.page=='input':
             if st.form_submit_button(tr('Áp dụng thiết lập')):
                 try:
                     if week.weekday()!=0:raise ValueError('Hãy chọn ngày Thứ Hai.')
-                    sleep_range=TimeRange(DateTimeParser.time(ss),DateTimeParser.time(se,True));save_settings(PlanningWindow(week,datetime.now(),SleepWindow(sleep_range.start,sleep_range.end)),None);refresh()
+                    sleep_range=TimeRange(DateTimeParser.time(ss),DateTimeParser.time(se,True));save_settings(PlanningWindow(week,datetime.combine(week,time.min),SleepWindow(sleep_range.start,sleep_range.end)),datetime.combine(week,time.min));refresh()
                 except ValueError as ex:st.error(tr(str(ex)))
     a,b,c=st.columns(3)
     if a.button(tr('Dữ liệu mẫu')):
