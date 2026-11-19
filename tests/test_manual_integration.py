@@ -24,7 +24,7 @@ def make_context(duration=420):
             Task(
                 id="task-1",
                 name="Task kiểm tra",
-                kind="soft",
+                mandatory=False,,
                 importance=3,
                 remaining_min=duration,
                 earliest_start=480,
@@ -157,7 +157,7 @@ def test_relax_fixed_then_two_days():
     option = next(
         item
         for item in report.options
-        if item.option_id == 4
+        if item.option_id == 3
     )
 
     assert option.is_available

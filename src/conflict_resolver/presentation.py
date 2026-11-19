@@ -72,17 +72,7 @@ def describe_changes(option, context, week_start):
 
         return lines
 
-    if option.option_id == 3:
-        old_deadline = moment(payload["old_deadline"])
-        new_deadline = moment(payload["new_deadline"])
-
-        return [
-            (
-                f"Dời deadline “{name}” từ "
-                f"{old_deadline} sang {new_deadline}."
-            ),
-            "Giữ nguyên thời lượng công việc.",
-        ]
+    
 
     lines = []
 

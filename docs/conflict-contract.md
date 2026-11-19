@@ -14,10 +14,14 @@
 
 - Sắp xếp lại toàn bộ công việc linh hoạt tương lai.
 - Buffer nằm sau mỗi chunk, kể cả chunk cuối.
-- Không dời deadline hard/asap.
+- Task bắt buộc (mandatory): không bỏ khỏi tuần, không dời deadline.
+- Task không bắt buộc: deadline cố định là hết Chủ nhật, được bỏ khỏi tuần.
 - Chỉ giảm thời lượng hoặc bỏ task khi có quyền tương ứng.
 - Không sửa input hoặc lưu lịch gốc.
 
+## Output
+
+- Ba options khi có conflict: bỏ khỏi tuần, giảm thời lượng, nới ràng buộc.
 ## Output
 
 - Bốn options khi có conflict.

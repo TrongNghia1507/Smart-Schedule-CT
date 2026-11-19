@@ -57,6 +57,17 @@ class FixedTask:
     day: int
     start: int
     end: int
+@dataclass
+class ElasticBlock:
+    """Khoảng bị chặn (phút tuyệt đối trong tuần), có thể co lại ở hai đầu."""
+    start: int
+    end: int
+    left_max: int = 0      # co tối đa ở đầu trái (phút)
+    right_max: int = 0     # co tối đa ở đầu phải (phút)
+    price: int = 0         # giá mỗi phút nới
+    touch: int = 0         # phạt một lần nếu khoảng này bị đụng
+    group: str = "event"   # "event" hoặc "gap": mỗi nhóm một AddNoOverlap
+
 
 @dataclass
 class SolveResult:
@@ -64,3 +75,4 @@ class SolveResult:
     objective: float | None = None
     chunks: dict[int, list[tuple[int, int]]] = field(default_factory=dict)
     solve_time: float = 0.0
+    elastic: dict[int, tuple[int, int]] = field(default_factory=dict)   # MỚI

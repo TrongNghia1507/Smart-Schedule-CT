@@ -131,6 +131,30 @@ class ReferenceScheduler:
             unscheduled=unscheduled,
         )
 
+def tier_of(task):
+    """Cấp ưu tiên: bắt buộc luôn cao hơn không bắt buộc."""
+    return (3 if task.mandatory else 0) + task.importance - 1
+
+
+def tier_weights(tasks):
+    """Mỗi cấp nặng hơn tổng trọng số của mọi task ở cấp thấp hơn,
+    nên một task cấp cao luôn thắng mọi tổ hợp task cấp thấp."""
+    counts = {}
+
+    for task in tasks:
+        tier = tier_of(task)
+        counts[tier] = counts.get(tier, 0) + 1
+
+    weights = {}
+    below = 0
+
+    for tier in sorted(counts):
+        weights[tier] = below + 1
+        below += counts[tier] * weights[tier]
+
+    return weights
+
+
 class CoreScheduler:
     """Kết nối dữ liệu Conflict với thuật toán CP-SAT."""
 
@@ -148,77 +172,31 @@ class CoreScheduler:
         self.time_limit = time_limit
         self.last_status = None
 
-    def plan(
-        self,
-        context,
-        *,
-        compress_id=None,
-        compression_min=1,
-        required_ids=(),
-    ):
-        from scheduling_algorithm.core_algorithm.models import (
-            Config,
-            Task,
-            FixedTask,
+    def _config(self):
+        from scheduling_algorithm.core_algorithm.models import Config
+
+        # Đơn vị phút; đã có buffer riêng nên không cộng break mặc định.
+        return Config(
+            0,
+            1440,
+            slot_minutes=1,
+            break_minutes=0,
+            time_limit=self.time_limit,
+            objective={"max_priority": 1},
         )
-        from scheduling_algorithm.core_algorithm.solve import solve
 
-        # free_slots đã trừ fixed task và thời gian đã qua.
-        # Gộp khoảng liền nhau để không tạo ranh giới giả.
-        slots = []
+    def _core_tasks(self, context):
+        from scheduling_algorithm.core_algorithm.models import Task
 
-        for start, end in free_slots(context):
-            if slots and slots[-1][1] == start:
-                slots[-1] = (
-                    slots[-1][0],
-                    end,
-                )
-            else:
-                slots.append((start, end))
-
-        # Phần bù của khoảng trống:
-        # giờ ngủ, fixed task, thời gian đã qua.
-        blocked = []
-        cursor = 0
-
-        for start, end in slots:
-            if cursor < start:
-                blocked.append((cursor, start))
-
-            cursor = end
-
-        if cursor < 10080:
-            blocked.append((cursor, 10080))
-
-        # Core dùng fixed theo từng ngày.
-        fixed = []
-
-        for start, end in blocked:
-            while start < end:
-                day = start // 1440
-                stop = min(
-                    end,
-                    (day + 1) * 1440,
-                )
-
-                fixed.append(
-                    FixedTask(
-                        "blocked",
-                        day,
-                        start % 1440,
-                        stop - day * 1440,
-                    )
-                )
-
-                start = stop
+        weights = tier_weights(context.tasks)
 
         # ID UI là chuỗi; core dùng ID số.
-        tasks = [
+        return [
             Task(
                 id=index,
                 name=task.name,
                 duration=task.remaining_min,
-                priority=task.importance,
+                priority=weights[tier_of(task)],
                 deadline=task.deadline,
                 splittable=True,
                 min_chunk=min(
@@ -238,51 +216,33 @@ class CoreScheduler:
             for index, task in enumerate(context.tasks)
         ]
 
-        # Dùng đơn vị phút để không bỏ lỡ mức như 400 phút.
-        # Đã có buffer riêng nên không cộng break mặc định.
-        config = Config(
-            0,
-            1440,
-            slot_minutes=1,
-            break_minutes=0,
-            time_limit=self.time_limit,
-            objective={"max_priority": 1},
-        )
-
-        compressed_index = next(
-            (
-                index
-                for index, task in enumerate(context.tasks)
-                if task.id == compress_id
-            ),
-            None,
-        )
-
-        protected_indices = {
-            index
+    @staticmethod
+    def _hint(context, hint):
+        index_of = {
+            task.id: index
             for index, task in enumerate(context.tasks)
-            if task.id in required_ids
         }
 
-        result = solve(
-            tasks,
-            fixed,
-            config,
-            require_all=self.require_all,
-            backward=self.backward,
-            compress_id=compressed_index,
-            compression_min=compression_min,
-            required_ids=protected_indices,
-        )
+        pieces = {}
 
+        for chunk in hint or ():
+            index = index_of.get(chunk.task_id)
+
+            if index is not None:
+                pieces.setdefault(index, []).append(
+                    (chunk.start, chunk.end)
+                )
+
+        return pieces or None
+
+    def _plan_result(self, context, result):
         chunks = [
             Chunk(
                 task_id=context.tasks[index].id,
                 start=start,
                 end=end,
                 buffer_end=(
-                    end
-                    + context.tasks[index].buffer_min
+                    end + context.tasks[index].buffer_min
                 ),
             )
             for index, pieces in result.chunks.items()
@@ -306,3 +266,104 @@ class CoreScheduler:
             chunks=chunks,
             unscheduled=unscheduled,
         )
+
+    def plan(
+        self,
+        context,
+        *,
+        compress_id=None,
+        compression_min=1,
+        required_ids=(),
+        hint=(),
+    ):
+        from scheduling_algorithm.core_algorithm.models import FixedTask
+        from scheduling_algorithm.core_algorithm.solve import solve
+
+        # free_slots đã trừ fixed task và thời gian đã qua.
+        # Gộp khoảng liền nhau để không tạo ranh giới giả.
+        slots = []
+
+        for start, end in free_slots(context):
+            if slots and slots[-1][1] == start:
+                slots[-1] = (slots[-1][0], end)
+            else:
+                slots.append((start, end))
+
+        # Phần bù của khoảng trống: giờ ngủ, fixed task, thời gian đã qua.
+        blocked = []
+        cursor = 0
+
+        for start, end in slots:
+            if cursor < start:
+                blocked.append((cursor, start))
+
+            cursor = end
+
+        if cursor < 10080:
+            blocked.append((cursor, 10080))
+
+        # Core dùng fixed theo từng ngày.
+        fixed = []
+
+        for start, end in blocked:
+            while start < end:
+                day = start // 1440
+                stop = min(end, (day + 1) * 1440)
+
+                fixed.append(
+                    FixedTask(
+                        "blocked",
+                        day,
+                        start % 1440,
+                        stop - day * 1440,
+                    )
+                )
+
+                start = stop
+
+        compressed_index = next(
+            (
+                index
+                for index, task in enumerate(context.tasks)
+                if task.id == compress_id
+            ),
+            None,
+        )
+
+        protected_indices = {
+            index
+            for index, task in enumerate(context.tasks)
+            if task.id in required_ids
+        }
+
+        result = solve(
+            self._core_tasks(context),
+            fixed,
+            self._config(),
+            require_all=self.require_all,
+            backward=self.backward,
+            compress_id=compressed_index,
+            compression_min=compression_min,
+            required_ids=protected_indices,
+            hint=self._hint(context, hint),
+        )
+
+        return self._plan_result(context, result)
+
+    def plan_relaxed(self, context, blocks, *, step=15):
+        """Một lần giải: nới ít nhất để xếp đủ mọi task.
+
+        Trả về (PlanResult, {block_index: (cắt_trái, cắt_phải)}).
+        """
+        from scheduling_algorithm.core_algorithm.solve import solve
+
+        result = solve(
+            self._core_tasks(context),
+            [],
+            self._config(),
+            require_all=True,
+            elastic=blocks,
+            step=step,
+        )
+
+        return self._plan_result(context, result), result.elastic

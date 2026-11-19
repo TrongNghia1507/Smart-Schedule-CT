@@ -3,16 +3,15 @@ from .models import ConflictReport, Option
 from .strategies.options import (
     compress_candidates,
     exclude_candidates,
-    postpone_candidates,
     relax_candidates,
+    relaxation_blocks,
 )
 
 
 STRATEGIES = [
     (1, "EXCLUDE_FROM_WEEK", exclude_candidates),
     (2, "COMPRESS_CURRENT_TASK", compress_candidates),
-    (3, "POSTPONE_OR_DEFER_TASKS", postpone_candidates),
-    (4, "CONSTRAINT_RELAXATION", relax_candidates),
+    (3, "CONSTRAINT_RELAXATION", relax_candidates),
 ]
 
 
@@ -88,7 +87,125 @@ def optimized_compression(context, target, scheduler):
         ],
     )
 
+def optimized_relaxation(context, target, scheduler):
+    from .scheduler import CoreScheduler
 
+    blocks, sources = relaxation_blocks(context, target)
+
+    if not any(
+        block.left_max or block.right_max
+        for block in blocks
+    ):
+        return
+
+    # Bài toán có thêm biến nới nên cho solver nhiều thời gian hơn.
+    engine = CoreScheduler(
+        time_limit=max(scheduler.time_limit, 3.0)
+    )
+
+    result, cuts = engine.plan_relaxed(
+        context,
+        blocks,
+        step=context.policy.compression_step_minutes,
+    )
+
+    if result.status != "FEASIBLE":
+        return
+
+    candidate = context.model_copy(deep=True)
+
+    fixed_by_id = {
+        fixed.id: fixed
+        for fixed in candidate.fixed_tasks
+    }
+
+    changes = []
+    widened = set()
+    total = 0
+
+    for index in sorted(cuts):
+        left, right = cuts[index]
+
+        if not left and not right:
+            continue
+
+        total += left + right
+        source = sources[index]
+
+        if source[0] == "fixed":
+            fixed = fixed_by_id[source[1]]
+            old_end = fixed.interval.end
+
+            fixed.interval.end = old_end - right
+
+            changes.append(
+                {
+                    "operation": "SHORTEN_FIXED",
+                    "task_id": fixed.id,
+                    "old_end": old_end,
+                    "new_end": fixed.interval.end,
+                }
+            )
+
+        else:
+            _, before, after = source
+
+            if left and before is not None:
+                candidate.active_windows[before].end += left
+                widened.add(before)
+
+            if right and after is not None:
+                candidate.active_windows[after].start -= right
+                widened.add(after)
+
+    shortened = len(changes)
+
+    for index in sorted(widened):
+        window = candidate.active_windows[index]
+
+        changes.append(
+            {
+                "operation": "EXPAND_ACTIVE_WINDOW",
+                "window_index": index,
+                "new_start": window.start,
+                "new_end": window.end,
+            }
+        )
+
+    if not changes:
+        return
+
+    proven = engine.last_status == "OPTIMAL"
+
+    description = (
+        f"Nới ràng buộc: rút {shortened} sự kiện cố định, "
+        f"mở rộng {len(widened)} khung giờ thức, "
+        f"tổng {total} phút. "
+    )
+
+    if proven:
+        description += "Đây là mức nới nhỏ nhất đã chứng minh."
+    else:
+        description += (
+            "Đây là mức nới khả thi; hết thời gian "
+            "trước khi chứng minh nhỏ nhất."
+        )
+
+    # Phần tử thứ 5: lịch đã xếp đủ, resolve() dùng làm preview
+    # mà không giải lại.
+    yield (
+        candidate,
+        {
+            "changes": changes,
+            "minimal_proven": proven,
+        },
+        description,
+        [
+            "Cần người dùng chọn trước khi "
+            "đổi giờ sinh hoạt."
+        ],
+        result,
+    )
 async def resolve(context, scheduler, settings):
     target = next(
         task
@@ -127,15 +244,19 @@ async def resolve(context, scheduler, settings):
 
         candidates = generator(context, target)
 
-        if (
-            option_id == 2
-            and scheduler.name == "core-cp-sat"
-        ):
-            candidates = optimized_compression(
-                context,
-                target,
-                scheduler,
-            )
+        if scheduler.name == "core-cp-sat":
+            if option_id == 2:
+                candidates = optimized_compression(
+                    context,
+                    target,
+                    scheduler,
+                )
+            elif option_id == 3:
+                candidates = optimized_relaxation(
+                    context,
+                    target,
+                    scheduler,
+                )
 
         for candidate_data in candidates:
             (
@@ -143,10 +264,17 @@ async def resolve(context, scheduler, settings):
                 payload,
                 description,
                 warnings,
+                *extra,
             ) = candidate_data
 
+            verified = extra[0] if extra else None
+
             if candidate.tasks:
-                if (
+                if verified is not None:
+                    # Option 3 (core): lịch này do chính lần giải nới tìm ra.
+                    result = verified
+
+                elif (
                     option_id == 2
                     and scheduler.name == "core-cp-sat"
                 ):
@@ -188,7 +316,7 @@ async def resolve(context, scheduler, settings):
 
         options.append(option)
 
-    apply_fallback(options, target.kind)
+    apply_fallback(options, target.mandatory)
 
     ai_status = await enrich_options(
         options,

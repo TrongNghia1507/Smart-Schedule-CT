@@ -50,7 +50,7 @@ def context_from_snapshot(snapshot, policy=None):
             Task(
                 id=task_meta.ui_id,
                 name=task.name,
-                kind=task.kind,
+                mandatory=task_meta.mandatory,
                 importance=task_meta.importance_ui,
                 remaining_min=task.remaining,
                 earliest_start=task.earliest_start,
@@ -67,13 +67,8 @@ def context_from_snapshot(snapshot, policy=None):
                 ),
                 buffer_min=task.buffer,
                 allow_compress=True,
-                allow_exclude=True,
+                allow_exclude=not task_meta.mandatory,
                 min_remaining_min=1,
-                max_postpone_minutes=(
-                    10080 - task.deadline
-                    if task.kind == "soft"
-                    else 0
-                ),
             )
         )
 
@@ -133,7 +128,7 @@ class PlanningSession:
     reports: dict = field(default_factory=dict)
     protected_ids: set = field(default_factory=set)
     cached_plan: object = None
-
+    hint_chunks: list = field(default_factory=list)
     def plan(self):
         if self.cached_plan is None:
             engine = CoreScheduler(
@@ -143,6 +138,7 @@ class PlanningSession:
             self.cached_plan = engine.plan(
                 self.context,
                 required_ids=self.protected_ids,
+                hint=self.hint_chunks, 
             )
 
         return self.cached_plan
@@ -223,6 +219,9 @@ class PlanningSession:
         candidate = scoped.model_copy(deep=True)
         payload = option.action_payload
 
+        # Lịch đã kiểm chứng lúc analyze dùng làm gợi ý cho solver.
+        hint = option.preview
+
         target = next(
             task
             for task in candidate.tasks
@@ -257,8 +256,9 @@ class PlanningSession:
 
             target.remaining_min = value
 
-        elif option_id == 3:
-            target.deadline = payload["new_deadline"]
+            # Thời lượng khác mức đã kiểm chứng thì hint không còn khớp.
+            if value != payload["new_duration"]:
+                hint = ()
 
         else:
             for change in payload["changes"]:
@@ -279,6 +279,8 @@ class PlanningSession:
                     window.start = change["new_start"]
                     window.end = change["new_end"]
 
+        kept_chunks = []
+
         # Kiểm tra trên bản sao trước khi cập nhật thật.
         if candidate.tasks:
             remaining_ids = {
@@ -295,13 +297,18 @@ class PlanningSession:
                 candidate.model_dump()
             )
 
-            result = CoreScheduler().plan(candidate)
+            result = CoreScheduler().plan(
+                candidate,
+                hint=hint,
+            )
 
             if result.status != "FEASIBLE":
                 raise ValueError(
                     "Lựa chọn chưa xếp được đầy đủ; "
                     "chưa thay đổi lịch."
                 )
+
+            kept_chunks = list(result.chunks)
 
         updated = self.context.model_copy(deep=True)
 
@@ -336,6 +343,10 @@ class PlanningSession:
             task.id
             for task in candidate.tasks
         }
+
+        # Lần xếp baseline kế tiếp xuất phát từ lịch đã kiểm chứng,
+        # thay vì giải lại từ đầu.
+        self.hint_chunks = kept_chunks
 
         self.cached_plan = None
         self.reports.clear()

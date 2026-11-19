@@ -99,4 +99,42 @@ class ConflictTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()["options"]), 4)
+        self.assertEqual(len(response.json()["options"]), 3)
+    async def test_mandatory_conflict_and_no_mutation(self):
+        context = load_context()
+        before = context.model_dump()
+
+        report = await resolve(
+            context,
+            ReferenceScheduler(),
+            Settings(ai_enabled=False),
+        )
+
+        options = {
+            option.option_id: option
+            for option in report.options
+        }
+
+        self.assertEqual(context.model_dump(), before)
+        self.assertEqual(report.status, "CONFLICT")
+        self.assertEqual(report.deficit_minutes, 60)
+
+        # Task bắt buộc không được bỏ khỏi tuần.
+        self.assertFalse(options[1].is_available)
+        self.assertTrue(options[2].is_available)
+        self.assertTrue(options[3].is_available)
+
+    async def test_optional_task_prefers_exclude(self):
+        context = load_context()
+
+        context.tasks[0].mandatory = False
+        context.tasks[0].allow_exclude = True
+
+        report = await resolve(
+            context,
+            ReferenceScheduler(),
+            Settings(ai_enabled=False),
+        )
+
+        self.assertEqual(report.options[0].option_id, 1)
+        self.assertTrue(report.options[0].is_available)

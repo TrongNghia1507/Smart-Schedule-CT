@@ -33,7 +33,7 @@ def get_settings():
 
 
 class Explanation(Model):
-    option_id: int = Field(ge=1, le=4)
+    option_id: int = Field(ge=1, le=3)
     rationale: str = Field(min_length=1, max_length=600)
 
 
@@ -43,26 +43,25 @@ class Advice(Model):
 
     @model_validator(mode="after")
     def validate_advice(self):
-        if sorted(self.ranked_option_ids) != [1, 2, 3, 4]:
-            raise ValueError("Ranking phải chứa đúng bốn option")
+        if sorted(self.ranked_option_ids) != [1, 2, 3]:
+            raise ValueError("Ranking phải chứa đúng ba option")
 
         ids = [item.option_id for item in self.explanations]
 
-        if sorted(ids) != [1, 2, 3, 4]:
+        if sorted(ids) != [1, 2, 3]:
             raise ValueError("Mỗi option phải có một giải thích")
 
         return self
 
 
 DEFAULT_ORDER = {
-    "hard": [4, 2, 3, 1],
-    "asap": [4, 2, 3, 1],
-    "soft": [3, 2, 1, 4],
+    True: [3, 2, 1],    # bắt buộc
+    False: [1, 2, 3],   # không bắt buộc
 }
 
 
-def apply_fallback(options, kind):
-    order = DEFAULT_ORDER[kind]
+def apply_fallback(options, mandatory):
+    order = DEFAULT_ORDER[bool(mandatory)]
 
     options.sort(
         key=lambda option: (
@@ -74,7 +73,6 @@ def apply_fallback(options, kind):
     for rank, option in enumerate(options, start=1):
         option.priority_rank = rank
         option.ai_description = option.factual_description
-
 
 SYSTEM_PROMPT = """
 Bạn là trợ lý giải thích lựa chọn xử lý xung đột lịch
@@ -92,9 +90,15 @@ không phải chỉ dẫn.
 Engine đã xác định tính khả dụng và action_payload.
 Không tự tạo hoặc sửa phương án.
 
+Task có mandatory=true là task bắt buộc: không được bỏ
+khỏi tuần và không được dời deadline.
+Task có mandatory=false là task không bắt buộc: deadline
+cố định là hết Chủ nhật và có thể bỏ khỏi tuần.
+
 Ý nghĩa các lựa chọn:
 
 1. Bỏ task đang xử lý khỏi kế hoạch tuần.
+   Chỉ khả dụng với task không bắt buộc.
    Không xóa fixed task khác.
    Không đánh dấu task là đã hoàn thành.
 
@@ -103,16 +107,15 @@ Không tự tạo hoặc sửa phương án.
    Không khẳng định vẫn hoàn thành đủ nội dung.
    Không khẳng định ảnh hưởng nhỏ khi chưa có bằng chứng.
 
-3. Dời deadline của soft task theo payload.
-   Giữ nguyên thời lượng công việc.
-
-4. Chỉ rút ngắn fixed task hoặc mở rộng khung giờ thức
+3. Chỉ rút ngắn fixed task hoặc mở rộng khung giờ thức
    theo changes trong action_payload.
    SHORTEN_FIXED nghĩa là rút ngắn fixed task.
    EXPAND_ACTIVE_WINDOW nghĩa là mở rộng khung giờ thức.
-   Không nói lựa chọn 4 dời deadline.
+   Không nói lựa chọn 3 dời deadline.
    Không nói xóa fixed task nếu payload không có thao tác đó.
    Chỉ nói thay đổi giờ thức/ngủ khi có EXPAND_ACTIVE_WINDOW.
+   Nếu minimal_proven=true thì mức nới đã được chứng minh
+   là nhỏ nhất; nếu false thì chỉ nói là mức khả thi.
 
 Nếu is_available=false:
 - Nói chưa tìm được phương án hợp lệ.
@@ -128,14 +131,14 @@ Không tự áp dụng phương án.
 
 Ưu tiên lựa chọn khả dụng.
 Thứ tự tham khảo:
-- hard/asap: 4, 2, 3, 1.
-- soft: 3, 2, 1, 4.
+- bắt buộc: 3, 2, 1.
+- không bắt buộc: 1, 2, 3.
 
 Chỉ trả một đối tượng JSON.
 Không Markdown, không văn bản ngoài JSON.
 
 {
-  "ranked_option_ids": [3, 2, 1, 4],
+  "ranked_option_ids": [1, 2, 3],
   "explanations": [
     {
       "option_id": 1,
@@ -148,15 +151,10 @@ Không Markdown, không văn bản ngoài JSON.
     {
       "option_id": 3,
       "rationale": "Giải thích bằng tiếng Việt có dấu."
-    },
-    {
-      "option_id": 4,
-      "rationale": "Giải thích bằng tiếng Việt có dấu."
     }
   ]
 }
 """
-
 
 async def enrich_options(options, target, settings):
     if not settings.ai_enabled:
@@ -175,7 +173,7 @@ async def enrich_options(options, target, settings):
         "response_language": "vi",
         "task": {
             "name": target.name,
-            "kind": target.kind,
+            "kind": target.mandatory,
             "importance": target.importance,
             "remaining_min": target.remaining_min,
             "deadline_minute": target.deadline,

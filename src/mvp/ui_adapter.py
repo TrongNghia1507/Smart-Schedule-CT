@@ -32,7 +32,7 @@ class TaskMeta:
     chunk_max: int
     can_split: bool
     focus: str
-
+    mandatory: bool = True 
 
 @dataclass
 class UiMeta:
@@ -69,7 +69,10 @@ def load_snapshot(obj: Any) -> dict:
 def _iso(text: str) -> str:
     return str(text).replace("T", " ")[:16]
 
-
+def is_mandatory(row: dict) -> bool:
+    if "mandatory" in row:
+        return bool(row["mandatory"])
+    return row.get("kind") != "soft"      # snapshot cũ: hard/asap = bắt buộc
 def snapshot_to_raw(snapshot: Any) -> Tuple[dict, UiMeta]:
     snap = load_snapshot(snapshot)
     win = snap["window"]
@@ -102,10 +105,18 @@ def snapshot_to_raw(snapshot: Any) -> Tuple[dict, UiMeta]:
 
     # ---- việc có hạn ------------------------------------------------------------------------------------
     deadlines: List[dict] = []
+    deadlines: List[dict] = []
     for i, row in enumerate(snap["deadline_tasks"]):
-        date, _, clock = _iso(row["deadline"]).partition(" ")
+        mandatory = is_mandatory(row)
+        if mandatory:
+            date, _, clock = _iso(row["deadline"]).partition(" ")
+        else:
+            # Không bắt buộc: deadline cố định là hết Chủ nhật (= 00:00 thứ Hai tuần sau).
+            date, clock = (ws + dt.timedelta(days=7)).isoformat(), "00:00"
         eff = row.get("effective_chunk") or {}
-        item = {"name": row["name"], "mode": "progress", "kind": row["kind"], "date": date, "time": clock,
+        item = {"name": row["name"], "mode": "progress",
+                "kind": "hard" if mandatory else "soft",
+                "date": date, "time": clock,
                 "estimate_min": int(row["remaining_min"]), "focus": row.get("focus", "high"),
                 "buffer": int(row.get("buffer_min") or 0) > 0,
                 "importance": IMPORTANCE_UI_TO_ENGINE[int(row.get("importance") or 2)],
@@ -114,8 +125,7 @@ def snapshot_to_raw(snapshot: Any) -> Tuple[dict, UiMeta]:
         meta.deadlines[f"D{i + 1}"] = TaskMeta(
             row["id"], row["name"], int(row.get("importance") or 2), int(row.get("buffer_min") or 0),
             int(eff.get("min") or row.get("chunk_min") or 30), int(eff.get("max") or row.get("chunk_max") or 90),
-            bool(row.get("can_split", True)), row.get("focus", "high"))
-
+            bool(row.get("can_split", True)), row.get("focus", "high"), mandatory)
     raw = {"week_start": ws.isoformat(), "now": _iso(win["now"]), "fixed": fixed, "deadlines": deadlines}
     return raw, meta
 

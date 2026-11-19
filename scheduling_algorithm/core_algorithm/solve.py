@@ -200,7 +200,95 @@ def build_objective(model, ctx: Ctx) -> dict:
 
     return scores
 
+def stepped(model, maximum, step, name):
+    """Lượng nới là bội của step, hoặc đúng bằng maximum."""
+    if maximum <= 0:
+        return 0
 
+    steps = -(-maximum // step)
+
+    count = model.NewIntVar(0, steps, f"{name}_steps")
+    scaled = model.NewIntVar(0, steps * step, f"{name}_scaled")
+    model.Add(scaled == count * step)
+
+    amount = model.NewIntVar(0, maximum, name)
+    model.AddMinEquality(amount, [scaled, maximum])
+
+    return amount
+
+
+def value_of(solver, item):
+    return item if isinstance(item, int) else solver.Value(item)
+
+
+def add_elastic(model, blocks, step):
+    """Trả về (cuts, groups, cost). Slot = 1 phút nên dùng phút trực tiếp."""
+    groups = {}
+    cuts = {}
+    cost = []
+
+    for index, block in enumerate(blocks):
+        length = block.end - block.start
+
+        left = stepped(model, block.left_max, step, f"left_{index}")
+        right = stepped(model, block.right_max, step, f"right_{index}")
+
+        if isinstance(left, int) and isinstance(right, int):
+            interval = model.NewIntervalVar(
+                block.start, length, block.end, f"block_{index}"
+            )
+        else:
+            model.Add(left + right <= length)
+
+            interval = model.NewIntervalVar(
+                block.start + left,
+                length - left - right,
+                block.end - right,
+                f"block_{index}",
+            )
+
+            cost.append(block.price * (left + right))
+
+            if block.touch > 0:
+                touched = model.NewBoolVar(f"touched_{index}")
+                model.Add(left + right >= 1).OnlyEnforceIf(touched)
+                model.Add(left + right == 0).OnlyEnforceIf(touched.Not())
+                cost.append(block.touch * touched)
+
+        groups.setdefault(block.group, []).append(interval)
+        cuts[index] = (left, right)
+
+    return cuts, groups, sum(cost)
+
+
+def add_hint(model, tasks, present, chunks, hint, cfg):
+    """hint: {task_index: [(start_min, end_min), ...]}"""
+    spd = cfg.slots_per_day
+
+    for task in tasks:
+        pieces = sorted(hint.get(task.id, []))
+
+        model.AddHint(present[task.id], 1 if pieces else 0)
+
+        for index, chunk in enumerate(chunks[task.id]):
+            if index < len(pieces):
+                start = cfg.to_slot(pieces[index][0])
+                end = cfg.to_slot(pieces[index][1])
+
+                model.AddHint(chunk.used, 1)
+                model.AddHint(chunk.start, start)
+                model.AddHint(chunk.length, end - start)
+                model.AddHint(chunk.end, end)
+                model.AddHint(chunk.day, start // spd)
+            else:
+                for var in (
+                    chunk.used,
+                    chunk.start,
+                    chunk.length,
+                    chunk.end,
+                    chunk.day,
+                ):
+                    model.AddHint(var, 0)
 def solve(
     tasks: list[Task],
     fixed: list[FixedTask],
@@ -211,6 +299,9 @@ def solve(
     compress_id=None,
     compression_min=1,
     required_ids=(),
+    elastic=None,   # MỚI: list[ElasticBlock]
+    step=15,        # MỚI
+    hint=None,      # MỚI: {task_index: [(start, end), ...]}
 ) -> SolveResult:
     model = cp_model.CpModel()
 
@@ -286,7 +377,22 @@ def solve(
                 )
             )
 
-    model.AddNoOverlap(intervals)
+    # MỚI: chế độ nới ràng buộc. Khoảng chặn nằm trong 2 nhóm
+    # (event, gap) vì chúng có thể chồng nhau về hình học;
+    # mỗi nhóm một AddNoOverlap cùng với chunk và buffer.
+    relax_cost = 0
+    cuts = {}
+
+    if elastic is None:
+        model.AddNoOverlap(intervals)
+    else:
+        cuts, groups, relax_cost = add_elastic(model, elastic, step)
+
+        if not groups:
+            model.AddNoOverlap(intervals)
+
+        for group in groups.values():
+            model.AddNoOverlap(intervals + group)
 
     # Giữ cơ chế break_minutes của thuật toán cũ.
     break_slots = (
@@ -323,6 +429,10 @@ def solve(
         # Option 2: giữ thời lượng mới lớn nhất có thể.
         model.Maximize(duration_var)
 
+    elif elastic is not None:
+        # MỚI - Option 3: nới ít nhất (phút × giá + phạt đụng).
+        model.Minimize(relax_cost)
+
     elif backward and require_all:
         # Đẩy lịch về phía cuối các cửa sổ khả dụng.
         model.Maximize(
@@ -333,8 +443,14 @@ def solve(
             )
         )
 
+    if hint:  # MỚI
+        add_hint(model, tasks, present, chunks, hint, cfg)
+
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = cfg.time_limit
+
+    if hint:  # MỚI
+        solver.parameters.repair_hint = True
 
     status = solver.Solve(model)
 
@@ -363,5 +479,11 @@ def solve(
             ]
 
             result.chunks[task.id] = sorted(pieces)
+
+        for index, (left, right) in cuts.items():  # MỚI
+            result.elastic[index] = (
+                value_of(solver, left),
+                value_of(solver, right),
+            )
 
     return result

@@ -103,7 +103,7 @@ def render(snapshot):
             format_func=lambda task_id: names[task_id],
         )
 
-        if st.button("Phân tích 4 lựa chọn"):
+        if st.button("Phân tích 3 lựa chọn"):
             with st.spinner(
                 "Đang kiểm chứng phương án..."
             ):
@@ -122,8 +122,7 @@ def render(snapshot):
                 titles = {
                     1: "Bỏ task khỏi tuần",
                     2: "Giảm thời lượng task",
-                    3: "Dời deadline",
-                    4: "Nới ràng buộc",
+                    3: "Nới ràng buộc",
                 }
 
                 st.markdown(

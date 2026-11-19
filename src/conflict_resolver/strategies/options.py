@@ -3,7 +3,7 @@ from ..scheduler import free_slots
 
 
 def exclude_candidates(context, target):
-    if not target.allow_exclude:
+    if target.mandatory or not target.allow_exclude:
         return
 
     candidate = context.model_copy(deep=True)
@@ -84,67 +84,6 @@ def compress_candidates(context, target):
             ],
         )
 
-
-def postpone_candidates(context, target):
-    # Chỉ dời deadline của chính soft task đang xử lý.
-    if target.kind != "soft":
-        return
-
-    if target.max_postpone_minutes <= 0:
-        return
-
-    latest = min(
-        WEEK,
-        target.deadline + target.max_postpone_minutes,
-    )
-
-    slots = free_slots(context)
-
-    for deadline in range(
-        target.deadline + 1,
-        latest + 1,
-    ):
-        # Chỉ là kiểm tra điều kiện cần.
-        # Chunk, buffer và task cạnh tranh vẫn do core kiểm tra.
-        capacity = sum(
-            max(
-                0,
-                min(end, deadline)
-                - max(start, target.earliest_start),
-            )
-            for start, end in slots
-        )
-
-        if capacity < target.remaining_min:
-            continue
-
-        candidate = context.model_copy(deep=True)
-
-        task = next(
-            task
-            for task in candidate.tasks
-            if task.id == target.id
-        )
-
-        task.deadline = deadline
-
-        yield (
-            candidate,
-            {
-                "operation": "POSTPONE_TASK",
-                "task_id": target.id,
-                "old_deadline": target.deadline,
-                "new_deadline": deadline,
-            },
-            (
-                f"Dời deadline {target.name} "
-                f"đến phút {deadline} của tuần."
-            ),
-            [
-                "Chỉ tìm trong tuần hiện tại; "
-                "không tự dời hard/asap."
-            ],
-        )
 
 
 def relax_candidates(context, target):
@@ -297,3 +236,160 @@ def relax_candidates(context, target):
             == "EXPAND_ACTIVE_WINDOW"
         ):
             yield proposal()
+def relaxation_blocks(context, target):
+    """Dựng khoảng bị chặn co được cho option 3 (CoreScheduler).
+
+    Trả về (blocks, sources). sources[i] mô tả blocks[i]:
+      ("fixed", task_id)               rút đuôi một sự kiện cố định
+      ("gap", window_trước, window_sau) khoảng ngủ giữa hai cửa sổ thức
+      ("static",)                      phần đã qua, không đổi được
+    """
+    from scheduling_algorithm.core_algorithm.models import ElasticBlock
+
+    policy = context.policy
+    now = context.now_minute
+    windows = context.active_windows
+
+    # Deadline đúng 00:00 thuộc ngày trước đó.
+    deadline_day = (target.deadline - 1) // 1440
+
+    blocks = []
+    sources = []
+
+    # 1. Sự kiện cố định: giữ start, chỉ rút end về tối thiểu min_duration.
+    for fixed in context.fixed_tasks:
+        start = fixed.interval.start
+        end = fixed.interval.end
+
+        if end <= now:
+            continue
+
+        eligible = (
+            fixed.can_shorten
+            and start >= now
+            and start < target.deadline
+            and end > target.earliest_start
+        )
+
+        cut_max = (
+            end - start - fixed.min_duration
+            if eligible
+            else 0
+        )
+
+        blocks.append(
+            ElasticBlock(
+                start,
+                end,
+                0,
+                max(0, cut_max),
+                price=policy.fixed_cut_cost_per_minute,
+                touch=policy.event_touch_penalty,
+                group="event",
+            )
+        )
+        sources.append(("fixed", fixed.id))
+
+    # 2. Mức nới tối đa của từng cửa sổ thức (sớm hơn, muộn hơn).
+    def limits(index):
+        window = windows[index]
+        day = window.start // 1440
+
+        if day > deadline_day:
+            return 0, 0
+
+        previous_end = max(
+            (
+                other.end
+                for other_index, other in enumerate(windows)
+                if other_index != index
+                and other.end <= window.start
+            ),
+            default=0,
+        )
+
+        next_start = min(
+            (
+                other.start
+                for other_index, other in enumerate(windows)
+                if other_index != index
+                and other.start >= window.end
+            ),
+            default=WEEK,
+        )
+
+        lower = max(
+            day * 1440,
+            previous_end,
+            now,
+            window.start - policy.max_earlier_minutes,
+        )
+
+        earlier = max(0, window.start - lower)
+
+        if window.end <= now:
+            later = 0
+        else:
+            upper = min(
+                (day + 1) * 1440,
+                next_start,
+                window.end + policy.max_later_minutes,
+            )
+            later = max(0, upper - window.end)
+
+        return earlier, later
+
+    bounds = {index: limits(index) for index in range(len(windows))}
+
+    # 3. Giờ ngủ = khoảng ngoài các cửa sổ thức.
+    #    Nới cửa sổ trước = đẩy đầu trái khoảng ngủ sang phải,
+    #    nới cửa sổ sau   = kéo đầu phải khoảng ngủ sang trái.
+    order = sorted(
+        range(len(windows)),
+        key=lambda index: windows[index].start,
+    )
+
+    spans = []
+    cursor = 0
+    previous = None
+
+    for index in order:
+        spans.append((cursor, windows[index].start, previous, index))
+        cursor = windows[index].end
+        previous = index
+
+    spans.append((cursor, WEEK, previous, None))
+
+    if now > 0:
+        blocks.append(ElasticBlock(0, now, group="gap"))
+        sources.append(("static",))
+
+    for gap_start, gap_end, before, after in spans:
+        start = max(gap_start, now)
+
+        if start >= gap_end:
+            continue
+
+        length = gap_end - start
+
+        left_max = bounds[before][1] if before is not None else 0
+        right_max = bounds[after][0] if after is not None else 0
+
+        if gap_start < now:
+            left_max = 0
+
+        blocks.append(
+            ElasticBlock(
+                start,
+                gap_end,
+                min(left_max, length),
+                min(right_max, length),
+                price=policy.sleep_cost_per_minute,
+                touch=policy.event_touch_penalty,
+                group="gap",
+            )
+        )
+        sources.append(("gap", before, after))
+
+    return blocks, sources
+

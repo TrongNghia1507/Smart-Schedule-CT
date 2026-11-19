@@ -7,7 +7,7 @@
     {
       "id": "lab",
       "name": "Hoàn thành LAB",
-      "kind": "hard",
+      "mandatory": true,
       "importance": 3,
       "remaining_min": 120,
       "earliest_start": 480,
@@ -17,8 +17,7 @@
       "buffer_min": 0,
       "allow_compress": true,
       "min_remaining_min": 45,
-      "allow_exclude": true,
-      "max_postpone_minutes": 0
+      "allow_exclude": true
     }
   ],
   "fixed_tasks": [

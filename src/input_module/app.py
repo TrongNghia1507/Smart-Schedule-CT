@@ -16,7 +16,13 @@ from schedule_input.application.preview import PreviewService
 from schedule_input.application.import_export import ImportExportService
 from schedule_input.infrastructure.repositories import JsonFileRepository
 from schedule_input.infrastructure.io import SampleDataProvider,CsvXlsxGateway,FIELDS
+import sys
 
+_ROOT = Path(__file__).resolve().parents[2]
+
+for _path in (_ROOT, _ROOT / "src"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 st.set_page_config(page_title=tr('Quản lý lịch tuần',st.query_params.get('lang','vi')),page_icon='📅',layout='wide')
 if st.session_state.get('app_version') != 4 or ('service' in st.session_state and type(st.session_state.service.data) is not ScheduleInput):
     st.session_state.clear()

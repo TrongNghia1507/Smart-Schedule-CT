@@ -24,7 +24,7 @@ class Task(Model):
     id: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=200)
 
-    kind: Literal["hard", "soft", "asap"]
+    mandatory: bool
     importance: int = Field(ge=1, le=3)
 
     remaining_min: int = Field(gt=0, le=WEEK)
@@ -39,8 +39,6 @@ class Task(Model):
     min_remaining_min: int = Field(default=1, gt=0, le=WEEK)
 
     allow_exclude: bool = False
-    max_postpone_minutes: int = Field(default=0, ge=0, le=WEEK)
-
     @model_validator(mode="after")
     def validate_task(self):
         if self.earliest_start >= self.deadline:
@@ -79,6 +77,11 @@ class Policy(Model):
     max_later_minutes: int = Field(default=0, ge=0, le=60)
 
     compression_step_minutes: int = Field(default=15, ge=1, le=60)
+
+    # Giá của option "Nới ràng buộc" (chỉnh tại đây).
+    sleep_cost_per_minute: int = Field(default=3, ge=0, le=100)
+    fixed_cut_cost_per_minute: int = Field(default=1, ge=0, le=100)
+    event_touch_penalty: int = Field(default=30, ge=0, le=1000)
 
 
 class ConflictContext(Model):
