@@ -38,9 +38,11 @@ class ConflictTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(context.model_dump(), before)
         self.assertEqual(report.status, "CONFLICT")
         self.assertEqual(report.deficit_minutes, 60)
-
+        self.assertTrue(options[1].action_payload["was_mandatory"])
+        self.assertEqual(options[1].priority_rank, 3)
+        self.assertTrue(options[1].full_schedule)
         # Task bắt buộc không được bỏ khỏi tuần.
-        self.assertFalse(options[1].is_available)
+        self.assertTrue(options[1].is_available)
         self.assertTrue(options[2].is_available)
         # Xóa "Chạy bộ" (đánh dấu xóa được khi bận) giải phóng chỗ cho LAB.
         self.assertTrue(options[3].is_available)
@@ -110,7 +112,7 @@ class ConflictTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report.deficit_minutes, 60)
 
         # Task bắt buộc không được bỏ khỏi tuần.
-        self.assertFalse(options[1].is_available)
+        self.assertTrue(options[1].is_available)
         self.assertTrue(options[2].is_available)
         self.assertTrue(options[3].is_available)
 

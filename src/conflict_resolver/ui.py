@@ -20,6 +20,66 @@ def clock(value):
         f"{minute // 60:02}:{minute % 60:02}"
     )
 
+DAY_NAMES = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+
+
+def schedule_rows(option, names):
+    """Các dòng bảng lịch hoàn chỉnh của một option."""
+    rows = []
+
+    for entry in option.full_schedule:
+        day = min(entry.start // 1440, 6)
+        start = entry.start % 1440
+        end = entry.end - (entry.start // 1440) * 1440
+
+        if entry.kind == "TASK":
+            kind = "Task linh hoạt"
+        else:
+            kind = (
+                "Cố định (chuẩn bị/đi về)"
+                if entry.ancillary
+                else "Cố định"
+            )
+
+        rows.append(
+            {
+                "Ngày": f"{DAY_NAMES[day]} (ngày {day + 1})",
+                "Bắt đầu": f"{start // 60:02}:{start % 60:02}",
+                "Kết thúc": (
+                    "24:00"
+                    if end == 1440
+                    else f"{end // 60 % 24:02}:{end % 60:02}"
+                ),
+                "Công việc": entry.name,
+                "Loại": kind,
+            }
+        )
+
+    return rows
+
+
+def render_full_schedule(option, names):
+    if not option.is_available:
+        return
+
+    with st.expander(
+        f"Bảng lịch hoàn chỉnh nếu chọn option {option.option_id}",
+        expanded=False,
+    ):
+        st.dataframe(
+            schedule_rows(option, names),
+            use_container_width=True,
+        )
+
+        if option.unplaced:
+            st.caption(
+                "Chưa xếp được (option này không giải quyết): "
+                + ", ".join(
+                    f"{names.get(task_id, task_id)} "
+                    f"({minutes} phút)"
+                    for task_id, minutes in option.unplaced.items()
+                )
+            )
 
 def render(snapshot):
     token = snapshot.to_json()
@@ -175,7 +235,7 @@ def render(snapshot):
 
                 for warning in option.warnings:
                     st.caption(warning)
-
+                render_full_schedule(option, names)
                 duration = None
 
                 if (

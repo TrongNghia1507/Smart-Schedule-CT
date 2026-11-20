@@ -72,7 +72,9 @@ def context_from_snapshot(snapshot, policy=None):
                 ),
                 buffer_min=task.buffer,
                 allow_compress=True,
-                allow_exclude=not task_meta.mandatory,
+                # Người dùng được quyền bỏ mọi task khi xử lý conflict;
+                # option chỉ áp dụng khi họ chủ động chọn.
+                allow_exclude=True,
                 min_remaining_min=1,
             )
         )
@@ -189,13 +191,23 @@ class PlanningSession:
             settings,
         )
 
+        # Task khác vẫn chưa xếp được: option nào cũng không giải quyết
+        # chúng, nên ghi rõ để bảng lịch hoàn chỉnh không gây hiểu lầm.
+        others = {
+            task_id: minutes
+            for task_id, minutes in baseline.unscheduled.items()
+            if task_id != target_id
+        }
+
+        for option in report.options:
+            option.unplaced = dict(others)
+
         self.reports[target_id] = (
             report,
             scoped,
         )
 
         return report
-
     def apply(
         self,
         target_id,

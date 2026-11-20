@@ -8,7 +8,7 @@ from .strategies.options import (
     remove_change,
 )
 from .errors import SolverInconclusive
-
+from .schedule_view import build_full_schedule
 STRATEGIES = [
     (1, "EXCLUDE_FROM_WEEK", exclude_candidates),
     (2, "COMPRESS_CURRENT_TASK", compress_candidates),
@@ -342,6 +342,14 @@ async def resolve(context, scheduler, settings):
             option.action_payload = payload
             option.factual_description = description
             option.preview = preview
+            option.full_schedule = build_full_schedule(
+                candidate,
+                preview,
+            )
+            option.active_windows = [
+                window.model_copy()
+                for window in candidate.active_windows
+            ]
 
             option.warnings = [
                 *warnings,

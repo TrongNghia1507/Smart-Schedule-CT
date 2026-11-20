@@ -316,7 +316,27 @@ class CoreScheduler:
                     return True
 
         return False
+    @staticmethod
+    def hopeless_ids(context):
+        """Task mà RIÊNG NÓ đã chắc chắn không vừa khoảng [bắt đầu, deadline]
+        (thời lượng + buffer > thời gian trống). Điều kiện cần, nên an toàn
+        để loại ra trước khi nhờ CP-SAT; nếu không CP-SAT có thể báo UNKNOWN
+        thay vì kết luận task này không xếp được."""
+        slots = free_slots(context)
+        now = context.now_minute
 
+        def free_in(left, right):
+            return sum(
+                max(0, min(end, right) - max(start, left))
+                for start, end in slots
+            )
+
+        return {
+            task.id
+            for task in context.tasks
+            if task.remaining_min + task.buffer_min
+            > free_in(max(now, task.earliest_start), task.deadline)
+        }
     def plan(
         self,
         context,
@@ -346,7 +366,53 @@ class CoreScheduler:
                 },
                 solver_status="INFEASIBLE",
             )
+        # Baseline (require_all=False): task đã chắc chắn không vừa thì
+        # đánh dấu chưa xếp ngay, chỉ nhờ CP-SAT xếp phần còn lại.
+        if not self.require_all and compress_id is None:
+            hopeless = self.hopeless_ids(context)
 
+            if hopeless:
+                skipped = {
+                    task.id: task.remaining_min
+                    for task in context.tasks
+                    if task.id in hopeless
+                }
+
+                reduced = context.model_copy(deep=True)
+                reduced.tasks = [
+                    task
+                    for task in reduced.tasks
+                    if task.id not in hopeless
+                ]
+
+                if not reduced.tasks:
+                    self.last_status = "INFEASIBLE"
+
+                    return PlanResult(
+                        status="NOT_FOUND",
+                        chunks=[],
+                        unscheduled=skipped,
+                        solver_status="INFEASIBLE",
+                    )
+
+                result = self.plan(
+                    reduced,
+                    required_ids=set(required_ids) - hopeless,
+                    hint=hint,
+                )
+
+                if result.status == "UNKNOWN":
+                    return result
+
+                return result.model_copy(
+                    update={
+                        "status": "NOT_FOUND",
+                        "unscheduled": {
+                            **result.unscheduled,
+                            **skipped,
+                        },
+                    }
+                )
         # free_slots đã trừ fixed task và thời gian đã qua.
         # Gộp khoảng liền nhau để không tạo ranh giới giả.
         slots = []

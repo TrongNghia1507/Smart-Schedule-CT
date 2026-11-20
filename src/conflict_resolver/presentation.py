@@ -36,12 +36,20 @@ def describe_changes(option, context, week_start):
         ]
 
     if option.option_id == 1:
-        return [
+        lines = [
             (
                 f"Bỏ “{name}” khỏi kế hoạch tuần; "
                 "chưa đánh dấu hoàn thành."
             )
         ]
+
+        if payload.get("was_mandatory"):
+            lines.append(
+                "Đây là task bắt buộc; chỉ bỏ khi bạn "
+                "chủ động chọn phương án này."
+            )
+
+        return lines
 
     if option.option_id == 2:
         old_duration = payload["old_duration"]

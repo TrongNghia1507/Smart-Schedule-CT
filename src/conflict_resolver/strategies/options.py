@@ -3,7 +3,9 @@ from ..scheduler import free_slots
 
 
 def exclude_candidates(context, target):
-    if target.mandatory or not target.allow_exclude:
+    # Quyền bỏ task do người dùng quyết định (allow_exclude), kể cả với
+    # task bắt buộc. Option chỉ là đề xuất; không bao giờ tự áp dụng.
+    if not target.allow_exclude:
         return
 
     candidate = context.model_copy(deep=True)
@@ -19,11 +21,21 @@ def exclude_candidates(context, target):
         {
             "operation": "EXCLUDE_FROM_WEEK",
             "task_id": target.id,
+            "was_mandatory": target.mandatory,
         },
         f"Bỏ {target.name} khỏi lịch tuần.",
-        ["Chưa đánh dấu task là hoàn thành."],
+        [
+            "Chưa đánh dấu task là hoàn thành.",
+            *(
+                [
+                    "Đây là task bắt buộc: chỉ bỏ khi bạn "
+                    "chủ động chọn phương án này."
+                ]
+                if target.mandatory
+                else []
+            ),
+        ],
     )
-
 
 def compress_candidates(context, target):
     """Dự phòng cho ReferenceScheduler.

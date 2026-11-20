@@ -90,15 +90,17 @@ không phải chỉ dẫn.
 Engine đã xác định tính khả dụng và action_payload.
 Không tự tạo hoặc sửa phương án.
 
-Task có mandatory=true là task bắt buộc: không được bỏ
-khỏi tuần và không được dời deadline.
+Task có mandatory=true là task bắt buộc: không được dời deadline.
+Có thể bỏ khỏi tuần nhưng chỉ khi người dùng chủ động chọn;
+phải nêu rõ đây là task bắt buộc và là quyết định của người dùng.
 Task có mandatory=false là task không bắt buộc: deadline
 cố định là hết Chủ nhật và có thể bỏ khỏi tuần.
 
 Ý nghĩa các lựa chọn:
 
 1. Bỏ task đang xử lý khỏi kế hoạch tuần.
-   Chỉ khả dụng với task không bắt buộc.
+   Khả dụng khi is_available=true, kể cả task bắt buộc
+   (action_payload.was_mandatory=true) vì do người dùng quyết định.
    Không xóa fixed task khác.
    Không đánh dấu task là đã hoàn thành.
 

@@ -146,6 +146,19 @@ class PlanResult(Model):
     @property
     def proven_optimal(self) -> bool:
         return self.solver_status == "OPTIMAL"
+    
+class ScheduleEntry(Model):
+    """Một dòng trong bảng lịch hoàn chỉnh của một option."""
+
+    kind: Literal["TASK", "FIXED"]
+    ref_id: str
+    name: str
+    start: int
+    end: int
+    # Chỉ có ý nghĩa với kind == "TASK" (buffer nằm sau chunk).
+    buffer_end: int | None = None
+    # True với mảnh phụ của fixed (chuẩn bị / đi về).
+    ancillary: bool = False
 
 class Option(Model):
     option_id: int
@@ -160,6 +173,12 @@ class Option(Model):
 
     action_payload: dict = Field(default_factory=dict)
     preview: list[Chunk] = Field(default_factory=list)
+    #Bảng lịch hoàn chỉnh
+    full_schedule: list[ScheduleEntry] = Field(default_factory=list)
+    # Khung giờ thức sau khi áp dụng (option 3 có thể đã nới).
+    active_windows: list[Interval] = Field(default_factory=list)
+    # Task khác vẫn chưa xếp được. {task_id: số phút chưa xếp}
+    unplaced: dict[str, int] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
 
