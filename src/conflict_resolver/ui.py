@@ -1,7 +1,9 @@
 import asyncio
 import json
+from datetime import date
 
 import streamlit as st
+from .calendar_view import PREVIEW_CSS, option_preview_html, schedule_blocks
 from .presentation import describe_changes
 from .errors import SolverInconclusive
 from .ai.advisor import get_settings
@@ -12,121 +14,30 @@ from .planning import (
 )
 
 
-def clock(value):
-    day, minute = divmod(value, 1440)
-
-    return (
-        f"Ngày {day + 1} "
-        f"{minute // 60:02}:{minute % 60:02}"
-    )
-
-DAY_NAMES = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
-
-
-def schedule_rows(option, names):
-    """Các dòng bảng lịch hoàn chỉnh của một option."""
-    rows = []
-
-    for entry in option.full_schedule:
-        day = min(entry.start // 1440, 6)
-        start = entry.start % 1440
-        end = entry.end - (entry.start // 1440) * 1440
-
-        if entry.kind == "TASK":
-            kind = "Task linh hoạt"
-        else:
-            kind = (
-                "Cố định (chuẩn bị/đi về)"
-                if entry.ancillary
-                else "Cố định"
-            )
-
-        rows.append(
-            {
-                "Ngày": f"{DAY_NAMES[day]} (ngày {day + 1})",
-                "Bắt đầu": f"{start // 60:02}:{start % 60:02}",
-                "Kết thúc": (
-                    "24:00"
-                    if end == 1440
-                    else f"{end // 60 % 24:02}:{end % 60:02}"
-                ),
-                "Công việc": entry.name,
-                "Loại": kind,
-            }
-        )
-
-    return rows
-
-
-def render_full_schedule(option, names):
-    if not option.is_available:
-        return
-
-    with st.expander(
-        f"Bảng lịch hoàn chỉnh nếu chọn option {option.option_id}",
-        expanded=False,
-    ):
-        st.dataframe(
-            schedule_rows(option, names),
-            use_container_width=True,
-        )
-
-        if option.unplaced:
-            st.caption(
-                "Chưa xếp được (option này không giải quyết): "
-                + ", ".join(
-                    f"{names.get(task_id, task_id)} "
-                    f"({minutes} phút)"
-                    for task_id, minutes in option.unplaced.items()
-                )
-            )
-
-def render(snapshot):
+def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
     token = snapshot.to_json()
+    week_start = date.fromisoformat(snapshot.to_dict()["window"]["week_start"])
 
-    st.subheader("Xếp lịch và xử lý conflict")
-
-    earlier = st.number_input(
-        "Cho phép thức dậy sớm hơn (phút)",
-        min_value=0,
-        max_value=60,
-        value=0,
-    )
-
-    later = st.number_input(
-        "Cho phép ngủ muộn hơn (phút)",
-        min_value=0,
-        max_value=60,
-        value=0,
-    )
-
-    if st.button("Chạy thuật toán xếp lịch"):
-        try:
-            policy = Policy(
-                max_earlier_minutes=earlier,
-                max_later_minutes=later,
-            )
-
-            context = context_from_snapshot(
-                snapshot,
-                policy,
-            )
-
-            st.session_state.planning = PlanningSession(
-                context
-            )
-
-            st.session_state.planning_snapshot = token
-
-        except ValueError as exc:
-            st.error(str(exc))
+    with controls:
+        st.subheader("Xếp lịch và xử lý conflict")
+        morning, evening = st.columns(2)
+        earlier = morning.number_input(
+            "Cho phép thức dậy sớm hơn (phút)", min_value=0, max_value=60, value=0
+        )
+        later = evening.number_input(
+            "Cho phép ngủ muộn hơn (phút)", min_value=0, max_value=60, value=0
+        )
+        if st.button("Chạy thuật toán xếp lịch", type="primary"):
+            try:
+                policy = Policy(max_earlier_minutes=earlier, max_later_minutes=later)
+                st.session_state.planning = PlanningSession(context_from_snapshot(snapshot, policy))
+                st.session_state.planning_snapshot = token
+            except ValueError as exc:
+                st.error(str(exc))
 
     session = st.session_state.get("planning")
 
-    if session is None:
-        return
-
-    if st.session_state.get("planning_snapshot") != token:
+    if session is None or st.session_state.get("planning_snapshot") != token:
         return
 
     try:
@@ -148,26 +59,6 @@ def render(snapshot):
         for task in session.context.tasks
     }
 
-    rows = [
-        {
-            "Task": names[chunk.task_id],
-            "Bắt đầu": clock(chunk.start),
-            "Kết thúc": clock(chunk.end),
-        }
-        for chunk in result.chunks
-    ]
-
-    rows += [
-        {
-            "Task": fixed.name + " (cố định)",
-            "Bắt đầu": clock(fixed.interval.start),
-            "Kết thúc": clock(fixed.interval.end),
-        }
-        for fixed in session.context.fixed_tasks
-    ]
-
-    st.dataframe(rows)
-
     if result.unscheduled:
         target_id = st.selectbox(
             "Task chưa xếp được",
@@ -176,47 +67,39 @@ def render(snapshot):
         )
 
         if st.button("Phân tích 3 lựa chọn"):
-            with st.spinner(
-                "Đang kiểm chứng phương án..."
-            ):
-                asyncio.run(
-                    session.analyze(
-                        target_id,
-                        get_settings(),
-                    )
-                )
+            with st.spinner("Đang kiểm chứng phương án..."):
+                try:
+                    asyncio.run(session.analyze(target_id, get_settings()))
+                except ValueError as exc:
+                    st.error(str(exc))
 
         if target_id in session.reports:
             report, _ = session.reports[target_id]
             st.caption(f"Trạng thái AI: {report.ai_status}")
+            st.html(PREVIEW_CSS)
+            titles = {
+                1: "Bỏ task khỏi tuần",
+                2: "Giảm thời lượng task",
+                3: "Nới ràng buộc",
+            }
 
             for option in report.options:
-                titles = {
-                    1: "Bỏ task khỏi tuần",
-                    2: "Giảm thời lượng task",
-                    3: "Nới ràng buộc",
-                }
-
-                st.markdown(
-                    f"### Lựa chọn {option.option_id}: "
-                    f"{titles[option.option_id]}"
-                )
-
-                week_start = snapshot.to_dict()[
-                    "window"
-                ]["week_start"]
+                heading = f"Lựa chọn {option.option_id} · {titles[option.option_id]}"
 
                 if option.is_available:
+                    preview = schedule_blocks(option.full_schedule, option.active_windows, lang)
+                    st.html(option_preview_html(heading, week_start, preview, deadline_styles, fixed_colors, lang))
                     st.markdown(
                         "**Phương án đề xuất đã được kiểm chứng:**"
                     )
                 else:
+                    st.subheader(heading)
                     st.markdown("**Tình trạng phương án:**")
 
                 descriptions = describe_changes(
                     option,
                     session.context,
-                    week_start,
+                    week_start.isoformat(),
                 )
 
                 for description in descriptions:
@@ -235,7 +118,11 @@ def render(snapshot):
 
                 for warning in option.warnings:
                     st.caption(warning)
-                render_full_schedule(option, names)
+                if option.is_available and option.unplaced:
+                    st.caption("Vẫn chưa xếp được: " + ", ".join(
+                        f"{names.get(task_id, task_id)} ({minutes} phút)"
+                        for task_id, minutes in option.unplaced.items()
+                    ))
                 duration = None
 
                 if (
@@ -259,6 +146,9 @@ def render(snapshot):
                         value=maximum,
                         key=f"duration_{target_id}",
                     )
+                    if duration != maximum:
+                        st.caption(f"Lịch xem thử dùng mức đã kiểm chứng là {maximum} phút. "
+                                   "Mức bạn nhập sẽ được kiểm chứng khi áp dụng.")
 
                 if st.button(
                     f"Áp dụng option {option.option_id}",
@@ -297,3 +187,4 @@ def render(snapshot):
         file_name="schedule.json",
         mime="application/json",
     )
+    return session.context, result

@@ -31,6 +31,17 @@ def apply_theme(mode):
     [data-testid="stVerticalBlockBorderWrapper"]>div,[data-testid="stForm"], [data-testid="stExpander"] {background:var(--app-surface);border-color:var(--app-border)!important;border-radius:16px!important}
     [data-testid="stForm"]{border:0;padding:0}
     .st-key-settings_card,.st-key-table_card_True,.st-key-table_card_False,.st-key-calendar_card,.st-key-summary_card,.st-key-legend_card,.st-key-footer_card{background:var(--app-surface)!important;border:1px solid var(--app-border)!important;border-radius:16px!important;box-shadow:0 1px 3px #20305008}
+    .stElementContainer:has(.calendar-view-mode){display:none}
+    :root:has(.calendar-view-mode[data-expanded="true"]) [data-testid="stMain"]{overflow:hidden}
+    :root:has(.calendar-view-mode[data-expanded="true"]) :is([data-testid="stHeader"],[data-testid="stMainBlockContainer"]){visibility:hidden}
+    .st-key-calendar_card:has(.calendar-view-mode[data-expanded="true"]){
+      visibility:visible;position:fixed;inset:0;z-index:1000;width:100%;height:100dvh;
+      box-sizing:border-box;padding:.75rem;overflow:auto;border-radius:0!important}
+    .st-key-calendar_card:has(.calendar-view-mode[data-expanded="true"]) iframe[title="streamlit_calendar.calendar"]{
+      height:calc(100dvh - 5rem)!important}
+    @media(max-width:640px){
+      .st-key-calendar_card:has(.calendar-view-mode[data-expanded="true"]) iframe[title="streamlit_calendar.calendar"]{
+        height:calc(100dvh - 7rem)!important}}
     [data-testid="stDateInputField"],[data-testid="stDateInputFieldsScroller"],[data-testid="stTimeInput"]>div,[data-testid="stDateInputCalendarButton"],.react-aria-DateField,[data-type="literal"]{background:var(--app-surface)!important;color:var(--app-text)!important;border-color:var(--app-border)!important}
     [data-testid="stDateInputField"]{border:1px solid var(--app-border)!important;border-radius:8px}
     [data-testid="stButton"] button,[data-testid="stDownloadButton"] button,[data-testid="stFormSubmitButton"] button{background:var(--app-surface);color:var(--app-text);border:1px solid var(--app-border);border-radius:10px;min-height:42px}

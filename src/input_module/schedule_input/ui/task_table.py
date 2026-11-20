@@ -14,14 +14,13 @@ def table_payload(tasks,fixed,report,lang='vi'):
         if fixed:
             raw['repeat']='' if task.repeat.is_one_off() else task.repeat.label()
             if len(task.repeat.days)==7:raw['repeat']='T2–CN'
-            if not task.is_flexible:raw['min_duration_min']=str(task.duration_min)
-            meta={'duration':f'{task.duration_min//60} giờ {task.duration_min%60:02}' if task.duration_min>=60 else f'{task.duration_min} phút','rigidity':f'Cứng 100%' if task.flexibility.is_rigid() else f'Co dãn {100-task.flexibility.rigidity_pct():g}% · rút tối đa {task.flexibility.shrinkable_min()} phút'}
+            duration=f'{task.duration_min//60} giờ {task.duration_min%60:02}' if task.duration_min>=60 else f'{task.duration_min} phút'
+            meta={'duration':tr(duration,lang)}
         else:
             raw['deadline']=task.deadline.strftime('%d/%m/%Y %H:%M')
             raw['earliest_start']=task.earliest_start.strftime('%d/%m/%Y %H:%M') if task.earliest_start else ''
             meta={}
         if fixed:
-            meta={k:tr(v,lang) for k,v in meta.items()}
             if lang=='en' and not task.repeat.is_one_off():
                 raw['repeat']='Mon–Sun' if len(task.repeat.days)==7 else ', '.join(weekday_labels(lang)[i] for i,d in enumerate(Weekday) if d in task.repeat.days)
         issues=[{'field':i.field,'message':tr(i.message,lang),'severity':i.severity.value} for i in report.by_task(task.id)]

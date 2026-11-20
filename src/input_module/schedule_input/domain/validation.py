@@ -46,7 +46,7 @@ class DeadlineRules(ValidationRule):
         if t.chunk.max_min>t.remaining_min:add('V13',I,'chunk_max','Chunk max hiệu dụng được giới hạn bằng thời lượng.')
         if not t.can_split():add('V14',I,'chunk_min','Việc này sẽ được xếp liền 1 khối.')
         a,b=t.effective_window(data.window.now)
-        if (b-a).total_seconds()/60<t.remaining_min+t.buffer.minutes:add('V15',W,'remaining_min','Khoảng khả dụng ngắn hơn thời lượng cộng nghỉ đệm.')
+        if (b-a).total_seconds()/60<t.remaining_min+t.buffer.minutes:add('V15',W,'remaining_min','Khoảng khả dụng ngắn hơn tổng thời lượng làm việc và nghỉ ngơi.')
         if any(o.id!=t.id and o.name.casefold()==t.name.casefold() for o in data.deadline_tasks):add('V16',W,'name','Trùng tên với việc khác; kiểm tra có nhập trùng không.')
         return r.issues
 class FixedRules(ValidationRule):
@@ -66,9 +66,8 @@ class ValidationService:
         for i,a in enumerate(tasks):
             for b in tasks[i+1:]:
                 if any(overlap(x,y) for x in a.occupied_occurrences(data.window.week_start) for y in b.occupied_occurrences(data.window.week_start)):
-                    rigid=a.flexibility.is_rigid() and b.flexibility.is_rigid()
                     for t,o in ((a,b),(b,a)):
-                        r.add('F04',Severity.ERROR if rigid else Severity.WARNING,'start',t.id,f'Chồng giờ với “{o.name}”. Hãy sửa giờ hoặc độ co dãn.')
+                        r.add('F04',Severity.ERROR,'start',t.id,f'Chồng giờ với “{o.name}”. Hãy sửa giờ.')
                         if a.is_sleep and b.is_sleep:r.add('F08',Severity.WARNING,'is_sleep',t.id,'Hai việc ngủ chồng nhau; kiểm tra nhập trùng.')
         if not tasks and not data.deadline_tasks:r.add('G02',Severity.ERROR,'', '', 'Hãy nhập ít nhất một việc.')
         for group in (tasks,data.deadline_tasks):

@@ -51,12 +51,6 @@ class BufferPolicy:
         if not 0<=self.minutes<=60 or self.minutes%5: raise ValueError('Buffer từ 0–60, chia hết cho 5.')
     def extra_minutes(self): return self.minutes
 @dataclass(frozen=True)
-class Flexibility:
-    min_min:int; full_min:int
-    def is_rigid(self): return self.min_min==self.full_min
-    def rigidity_pct(self): return 100*self.min_min/self.full_min
-    def shrinkable_min(self): return self.full_min-self.min_min
-@dataclass(frozen=True)
 class SleepWindow:
     start:int=1380; end:int=300
     def bands(self,day):
@@ -81,7 +75,7 @@ class DeadlineTask(Task):
     def can_split(self): return self.chunk.can_split(self.remaining_min)
 @dataclass(frozen=True)
 class FixedTask(Task):
-    repeat:RepeatRule; time_range:TimeRange; is_flexible:bool; flexibility:Flexibility; is_sleep:bool=False
+    repeat:RepeatRule; time_range:TimeRange; is_sleep:bool=False
     prep_min:int=0
     after_min:int=0
     removable:bool=False   # có thể xóa khi bận (khi xử lý conflict)

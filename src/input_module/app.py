@@ -77,15 +77,12 @@ def editor(fixed,id=None):
         row['end']=b.text_input(tr('Giờ kết thúc (cho phép 24:00)'),raw.get('end',''),key=key+'end')
         row['prep_min']=st.slider('Thời gian chuẩn bị (phút)' if language()=='vi' else 'Preparation time (minutes)',0,90,int(raw.get('prep_min') or 0),key=key+'prep')
         row['after_min']=st.slider('Thời gian dự trù sau công việc (phút)' if language()=='vi' else 'Time reserved after task (minutes)',0,60,int(raw.get('after_min') or 0),key=key+'after')
-        row['is_flexible']=st.toggle(tr('Có thể chia nhỏ và co dãn'),value=raw.get('is_flexible')=='Có',key=key+'flex')
         row['removable_when_busy']=st.toggle(tr('Có thể xóa khi bận'),value=raw.get('removable_when_busy')=='Có',key=key+'removable',help=tr('Khi một việc có hạn bị xung đột, hệ thống được phép đề xuất xóa lần diễn ra này (vào ngày hạn chót và các ngày trước đó) để lấy chỗ.'))
-        duration=1440
         try:
             duration=TimeRange(DateTimeParser.time(row['start']),DateTimeParser.time(row['end'],True)).duration_min();st.caption(tr(f'Thời lượng: {duration} phút'))
         except ValueError:pass
-        row['min_duration_min']=st.number_input(tr('Thời lượng tối thiểu (phút)'),1,duration,min(int(raw.get('min_duration_min') or duration),duration),disabled=not row['is_flexible'],key=key+'minimum')
     else:
-        row['kind']=st.selectbox(tr('Loại'), ['asap','hard','soft'],index=['asap','hard','soft'].index(raw['kind']) if raw.get('kind') else None,help=tr('asap: việc gấp · hard: hạn cứng · soft: hạn mềm'),key=key+'kind')
+        row['mandatory']=st.toggle(tr('Bắt buộc'),value=raw.get('mandatory','Có')=='Có',key=key+'mandatory')
         row['importance']=st.select_slider(tr('Mức quan trọng'),options=[1,2,3],value=int(raw.get('importance') or 2),key=key+'importance')
         deadline=DateTimeParser.parse(raw['deadline']) if raw.get('deadline') else None
         free_end=datetime.combine(s.data.window.week_end(),time(23,59))
@@ -99,7 +96,7 @@ def editor(fixed,id=None):
             row['deadline']=datetime.combine(day,clock).isoformat(timespec='minutes') if day else ''
         row['remaining_min']=st.text_input(tr('Thời lượng (phút, ví dụ 60 hoặc 1h30)'),raw.get('remaining_min',''),key=key+'remaining')
         row['focus']=st.radio(tr('Mức tập trung'),['high','low'],index=0 if raw.get('focus','high')=='high' else 1,horizontal=True,key=key+'focus')
-        row['buffer_min']=st.slider(tr('Nghỉ đệm sau cả việc'),0,60,int(raw.get('buffer_min') or 15),step=5,key=key+'buffer')
+        row['buffer_min']=st.slider(tr('Nghỉ ngơi sau công việc'),0,60,int(raw.get('buffer_min') or 15),step=5,key=key+'buffer')
         with st.expander(tr('Tùy chọn nâng cao'),expanded=bool(raw)):
             row['earliest_start']=st.text_input(tr('Bắt đầu sớm nhất (dd/mm/yyyy HH:mm, có thể để trống)'),raw.get('earliest_start',''),key=key+'earliest')
             mn,mx=DefaultsProvider.chunk(row['focus']);a,b=st.columns(2)
@@ -121,50 +118,144 @@ def editor(fixed,id=None):
     if id and buttons[3].button(tr('Xóa việc này'),key=key+'delete'):s.remove(id);refresh()
     if buttons[1].button(tr('Hủy'),key=key+'cancel'):refresh()
 
+@st.dialog(tr('Thông tin công việc'),width='small')
+def scheduled_task_details(block,week_start,deadline_task=None,fixed_task=None):
+    from html import escape
+
+    monday=datetime.combine(week_start,time.min)
+    start=monday+timedelta(minutes=block.start)
+    end=monday+timedelta(minutes=block.end)
+    ends_at=f'{end:%H:%M}' if start.date()==end.date() else f'{end:%d/%m/%Y %H:%M}'
+    kinds={'deadline':'Việc có hạn chót','fixed':'Việc cố định',
+           'reserve':'Chuẩn bị / di chuyển' if block.ref_id else 'Nghỉ ngơi'}
+    fields=[
+        ('Loại',tr(kinds[block.kind])),
+        ('Giờ đã xếp',f'{start:%d/%m/%Y %H:%M} – {ends_at}'),
+        ('Thời lượng khối',tr(f'{block.end-block.start} phút')),
+    ]
+    if deadline_task is not None:
+        deadline=monday+timedelta(minutes=deadline_task.deadline)
+        fields.extend([
+            ('Hạn chót',f'{deadline:%d/%m/%Y %H:%M}'),
+            ('Mức quan trọng',f'{deadline_task.importance}/3'),
+            ('Bắt buộc',tr('Có' if deadline_task.mandatory else 'Không')),
+            ('Tổng thời lượng',tr(f'{deadline_task.remaining_min} phút')),
+        ])
+    if fixed_task is not None:
+        fields.extend([
+            ('Thời gian chuẩn bị',tr(f'{fixed_task.prep_min} phút')),
+            ('Thời gian dự trù',tr(f'{fixed_task.after_min} phút')),
+        ])
+    st.html(f'<h3>{escape(block.title)}</h3>')
+    st.markdown('\n'.join(f'- **{tr(label)}** · {value}' for label,value in fields))
+
+
 @st.fragment
 def preview_panel():
     from schedule_input.ui.calendar_view import render_calendar
     preview_data=deepcopy(s.data)
+    preview_data.window=replace(preview_data.window,now=datetime.now())
     if st.session_state.get('preview_current_week',False):
-        now=datetime.combine(date.today()-timedelta(days=date.today().weekday()),time.min)
-        preview_data.window=replace(preview_data.window,week_start=now.date(),now=now)
+        today=preview_data.window.now.date()
+        preview_data.window=replace(preview_data.window,week_start=today-timedelta(days=today.weekday()))
     model=PreviewService().build(preview_data);report=s.review()
+    lang=language()
+    snapshot=st.session_state.get('snapshot')
+    fullscreen=st.session_state.get('calendar_fullscreen',False)
     main,side=st.columns([4,1.25],gap='large')
+    planned_events=None
+    planned_blocks={}
+    fixed_swatch=''
+    if snapshot and preview_data.window.week_start==s.data.window.week_start:
+        from conflict_resolver.calendar_view import BLOCK_COLORS, calendar_events, deadline_styles, schedule_blocks
+        from conflict_resolver.schedule_view import build_full_schedule
+        from conflict_resolver.ui import render as render_planning
+        from mvp.ui_adapter import snapshot_to_raw
+
+        controls=main.container()
+        _,meta=snapshot_to_raw(snapshot)
+        fixed_colors={ref:st.session_state.task_colors[task_id] for ref,task_id in meta.fixed_ui_ids.items()
+                      if task_id in st.session_state.task_colors}
+        styles=deadline_styles(snapshot.to_dict()['deadline_tasks'])
+        plan=render_planning(snapshot,controls,fixed_colors,styles,lang)
+        if plan is not None:
+            context,result=plan
+            entries=build_full_schedule(context,result.chunks)
+            blocks=schedule_blocks(entries,context.active_windows,lang)
+            planned_events=calendar_events(preview_data.window.week_start,blocks,styles,fixed_colors)
+            click_revision=st.session_state.get('planned_click_revision',0)
+            for event,block in zip(planned_events,blocks):
+                if block.kind!='sleep':
+                    event['interactive']=True
+                    event['extendedProps']={'click_revision':click_revision}
+                    planned_blocks[event['id']]=block
+            fixed_swatch=f' style="background:{BLOCK_COLORS["fixed"][0]}"'
     with main:
         with st.container(border=True,key='calendar_card'):
-            st.subheader(tr(f'{preview_data.window.week_start:%d/%m} – {preview_data.window.week_end():%d/%m/%Y}'))
-            if st.session_state.get('preview_current_week',False):
+            state='true' if fullscreen else 'false'
+            st.html(f'<span class="calendar-view-mode" data-expanded="{state}" hidden></span>')
+            heading,zoom=st.columns([4,1.5],vertical_alignment='center')
+            heading.subheader(tr(f'{preview_data.window.week_start:%d/%m} – {preview_data.window.week_end():%d/%m/%Y}'))
+            def toggle_calendar_size():
+                st.session_state.calendar_fullscreen=not st.session_state.get('calendar_fullscreen',False)
+            zoom.button(tr('Thu nhỏ' if fullscreen else 'Phóng to'),key='zoom_calendar',
+                        icon=':material/fullscreen_exit:' if fullscreen else ':material/fullscreen:',
+                        on_click=toggle_calendar_size,width='stretch')
+            if not fullscreen and st.session_state.get('preview_current_week',False):
                 st.caption(tr('Đang xem tuần hiện tại. Tuần lập lịch và dữ liệu đã lưu được giữ nguyên.'))
                 if st.button(tr('← Quay lại tuần đang lập lịch'),key='planning_week'):
                     st.session_state.preview_current_week=False
-                    refresh()
-            if not preview_data.window.contains(preview_data.window.now):
+                    st.rerun(scope='app')
+            if not fullscreen and not preview_data.window.contains(preview_data.window.now):
                 st.info(tr('Vạch đỏ chỉ hiện trong tuần có ngày hôm nay. Tuần đang xem không chứa ngày hiện tại.'))
                 if st.button(tr('Xem tuần hiện tại'),key='current_week'):
                     st.session_state.preview_current_week=True
-                    refresh()
+                    st.rerun(scope='app')
             calendar_key=f'calendar_preview_{preview_data.window.week_start}_{mode}_{language()}'
             def calendar_changed():
+                value=st.session_state.get(calendar_key) or {}
+                if planned_events is not None:
+                    event=value.get('eventClick',{}).get('event',{})
+                    if (value.get('callback')=='eventClick' and event.get('id') in planned_blocks
+                            and event.get('extendedProps',{}).get('click_revision')==click_revision):
+                        st.session_state.planned_click=event['id']
+                        # The component sends identical payloads for repeat clicks unless the revision changes.
+                        st.session_state.planned_click_revision=click_revision+1
+                    return
                 from schedule_input.application.calendar_callback import handle_calendar_event
-                handle_calendar_event(s,st.session_state,st.session_state.get(calendar_key) or {})
+                handle_calendar_event(s,st.session_state,value)
             render_calendar(preview_data,model,report,st.session_state.rev,mode,language(),st.session_state.task_colors,
                             component_key=calendar_key,on_change=calendar_changed,
-                            sync_revision=st.session_state.get('calendar_sync',0))
+                            sync_revision=st.session_state.get('calendar_sync',0),planned_events=planned_events,
+                            fullscreen=fullscreen)
             if st.session_state.get('calendar_error'):report_ui(st.session_state.calendar_error)
             if st.session_state.get('calendar_message'):st.error(st.session_state.pop('calendar_message'))
-            st.caption('Kéo để dời giờ theo bước 10 phút. Với việc lặp, thay đổi áp dụng cho toàn bộ lịch lặp.' if language()=='vi' else 'Drag in 10-minute steps. Moving a recurring task updates the entire series.')
+            if planned_events is None and not fullscreen:
+                st.caption('Kéo để dời giờ theo bước 10 phút. Với việc lặp, thay đổi áp dụng cho toàn bộ lịch lặp.' if lang=='vi' else 'Drag in 10-minute steps. Moving a recurring task updates the entire series.')
     with side:
         with st.container(border=True,key="summary_card"):
             st.subheader(tr('Tóm tắt'))
-            st.markdown(tr(f'**{len(s.data.fixed_tasks)} việc cố định**'))
-            st.caption(tr(f'{len(model.events)} khối · {len(model.bands)} dải ngủ mặc định'))
+            if planned_events is None:
+                st.markdown(tr(f'**{len(s.data.fixed_tasks)} việc cố định**'))
+                st.caption(tr(f'{len(model.events)} khối · {len(model.bands)} dải ngủ mặc định'))
+            else:
+                count=len(result.chunks)
+                st.markdown(f'**{count} khối deadline đã xếp**' if lang=='vi' else f'**{count} scheduled deadline blocks**')
             status_badges(report)
         with st.container(border=True,key="legend_card"):
             st.subheader(tr('Chú giải'))
-            st.html('<div class="legend"><span class="swatch"></span>'+tr('Việc cố định (tên + giờ)')+'</div><div class="legend"><span class="swatch sleep"></span>'+tr('Giờ ngủ')+' '+hh(s.data.window.sleep.start)+'–'+hh(s.data.window.sleep.end)+'</div><div class="legend"><span class="swatch line"></span>'+tr('Thời gian hiện tại')+'</div><div class="legend">'+tr('↔ Có thể chia nhỏ / co dãn')+'</div>')
-            st.caption(tr('Bấm vào một việc để sửa nhanh. Việc có deadline chưa được xếp nên chưa hiện ở đây.'))
+            sleep_label=tr('Giờ ngủ')
+            if planned_events is None:
+                sleep_label+=f' {hh(s.data.window.sleep.start)}–{hh(s.data.window.sleep.end)}'
+            st.html(f'<div class="legend"><span class="swatch"{fixed_swatch}></span>'+tr('Việc cố định (tên + giờ)')+'</div><div class="legend"><span class="swatch sleep"></span>'+sleep_label+'</div><div class="legend"><span class="swatch line"></span>'+tr('Thời gian hiện tại')+'</div>')
+            if planned_events is None:
+                st.caption(tr('Bấm vào một việc để sửa nhanh. Việc có deadline chưa được xếp nên chưa hiện ở đây.'))
+            else:
+                st.caption('Mức quan trọng · ① nhạt · ② vừa · ③ đậm' if lang=='vi'
+                           else 'Importance · ① light · ② medium · ③ dark')
+                st.caption(tr('Bấm vào một khối để xem thông tin công việc.'))
         if st.button(tr('← Quay lại nhập'),use_container_width=True):st.session_state.page='input';refresh()
-        if st.button(
+        if not snapshot and st.button(
             tr("Đúng rồi, tiếp tục"),
             key="confirm_snapshot",
             type="primary",
@@ -177,11 +268,17 @@ def preview_panel():
                 st.error(tr(str(ex)))
             else:
                 st.rerun(scope="app")
-        if st.session_state.get('snapshot'):st.download_button(tr('Xuất snapshot JSON để debug'),st.session_state.snapshot.to_json(),'input_snapshot.json',mime='application/json')
+        if snapshot:st.download_button(tr('Xuất snapshot JSON để debug'),snapshot.to_json(),'input_snapshot.json',mime='application/json')
         if report.issues:
             with st.expander(tr('Chi tiết kiểm tra')):report_ui(report)
 
-    if st.session_state.get('edit_request'):editor(*st.session_state.edit_request)
+    selected=planned_blocks.get(st.session_state.pop('planned_click',None))
+    if selected is not None:
+        deadline_task=next((task for task in context.tasks if task.id==selected.ref_id),None) if selected.kind=='deadline' else None
+        fixed_id=meta.fixed_ui_ids.get(selected.ref_id.split('@',1)[0]) if selected.kind=='fixed' else None
+        scheduled_task_details(selected,preview_data.window.week_start,deadline_task,s.data._tasks.get(fixed_id))
+    elif planned_events is None and st.session_state.get('edit_request'):
+        editor(*st.session_state.edit_request)
 
 banner(st.session_state.page)
 nav_input,nav_preview,_,language_col,theme_col=st.columns([1.2,1.5,2,1.3,1])
@@ -244,10 +341,9 @@ if st.session_state.page=='input':
             candidate=ScheduleInput(s.data.window);s.repository.save(candidate,s.now_override);s.history.append(s.data);s.data=candidate;st.session_state.ask_clear=False;refresh()
     table_errors=False;report=s.review()
     for fixed,title in ((True,'A. Việc cố định'),(False,'B. Việc có deadline')):
-        with st.container(border=True,key=f'table_card_{fixed}'):
-            tasks=s.data.fixed_tasks if fixed else s.data.deadline_tasks
-            heading,add=st.columns([5,1]);heading.subheader(tr(f'{title} · {len(tasks)} việc'))
-            if add.button(tr('+ Thêm bằng form'),key=f'add_{fixed}',type='primary'):st.session_state.edit_request=(fixed,None)
+        tasks=s.data.fixed_tasks if fixed else s.data.deadline_tasks
+        with st.expander(tr(f'{title} · {len(tasks)} việc'),expanded=True,key=f'table_card_{fixed}'):
+            if st.button(tr('+ Thêm bằng form'),key=f'add_{fixed}',type='primary'):st.session_state.edit_request=(fixed,None)
             event=render_table(tasks,fixed,report,mode,st.session_state.rev,language())
             if event and event.get('nonce')!=st.session_state.get(f'table_event_{fixed}'):
                 st.session_state[f'table_event_{fixed}']=event['nonce']
@@ -290,8 +386,3 @@ else:
     preview_panel()
 
 if st.session_state.page=='input' and st.session_state.get('edit_request'):editor(*st.session_state.edit_request)
-
-if st.session_state.get("snapshot"):
-    from conflict_resolver.ui import render as render_planning
-
-    render_planning(st.session_state.snapshot)

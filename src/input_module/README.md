@@ -38,7 +38,7 @@ python -m streamlit run app.py \
 ## Sử dụng
 
 1. Chọn tuần Thứ Hai và giờ ngủ trong Thiết lập chung. Ứng dụng luôn dùng giờ hiện tại. Nút Dữ liệu mẫu nạp 9 việc và dời hạn chót sang tuần tới sau khi xác nhận thay dữ liệu.
-2. Nhập bằng form hoặc nhấp đúp/Enter tại ô bảng để sửa trực tiếp. Bảng tự lưu thay đổi hợp lệ. Có nút Sửa/Xóa trên từng dòng và Hoàn tác. Importance chỉ có 1, 2, 3; không có nhân bản và trường is_sleep.
+2. Nhập bằng form hoặc nhấp đúp/Enter tại ô bảng để sửa trực tiếp. Bấm tiêu đề từng khung để thu gọn hoặc mở rộng; bảng dài cuộn bên trong khung. Bảng tự lưu thay đổi hợp lệ. Có nút Sửa/Xóa trên từng dòng và Hoàn tác. Việc có hạn chót có ô **Bắt buộc** và mức quan trọng từ 1 đến 3.
 3. CSV có hai loại bảng; xem lỗi từng dòng trước khi chọn nhập các dòng hợp lệ. Xuất dùng UTF-8 BOM.
 4. Trang Xem trước lịch có lịch tuần bên trái, Tóm tắt và Chú giải bên phải. Bấm một khối để sửa cả chuỗi lặp. Giờ ngủ mặc định là các dải kẻ sọc mỗi ngày, không phải việc. Có thể xem lịch khi dữ liệu còn lỗi, nhưng không thể tạo snapshot.
 5. Xác nhận tạo snapshot bất biến trong bộ nhớ. Nút xuất JSON chỉ phục vụ debug, không tự gọi Ranking.
@@ -59,8 +59,8 @@ File nháp: `data/schedule_input_draft.json`. File lỗi cú pháp được gi�
 
 ## Quyết định đã chốt và hợp đồng tích hợp
 
-- Buffer là bội số 5 trong 0–60; min_duration_min từ 1 phút.
-- Việc có `min_duration_min == duration_min` là cứng dù bật is_flexible.
+- Buffer là bội số 5 trong 0–60.
+- Việc cố định chiếm trọn khoảng giờ đã nhập. Dữ liệu cũ vẫn đọc được và các trường co dãn cũ được bỏ qua.
 - Giờ ngủ chỉ lấy từ Thiết lập chung và luôn áp dụng mỗi ngày. Không suy luận tên công việc là giờ ngủ; trường is_sleep cũ không còn được nhập/xuất hoặc dùng để thay thế giờ ngủ.
 - Schema JSON/snapshot là 2. File v1 được sao lưu thành `.v1.bak.json` trước khi đọc chuyển đổi: importance 1–3 → 1, 4–7 → 2, 8–10 → 3; bỏ now_override. Công việc cũ vẫn được giữ, kể cả việc ngủ đã nhập trước đây, để người dùng tự quyết định xóa nếu trùng.
 - Các occurrence giao với tuần được lấy cả từ ngày trước đầu tuần. Preview cắt biên tuần; snapshot giữ start/end gốc.

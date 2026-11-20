@@ -48,11 +48,11 @@ def test_sleep_per_day(data):
 def test_sleep_outside_week(data):
     data.add(fixed(repeat='',one_off_date='30/10/2026',is_sleep='Có'))
     assert len(sleep_bands(data))==14
-def test_overlap_rigid_and_flexible(data):
-    data.add(fixed(start='07:30',end='08:00',is_flexible='Có',min_duration_min=30))
-    assert any(i.code=='F04' and i.severity==Severity.ERROR for i in ValidationService().validate_all(data).issues)
-    t=data.fixed_tasks[-1];data.update(replace(t,flexibility=Flexibility(15,30)))
-    assert not ValidationService().validate_all(data).has_errors()
+def test_overlap_rejects_legacy_flexible_task(data):
+    task=fixed(start='07:30',end='08:00',is_flexible='Có',min_duration_min=15)
+    data.add(task)
+    assert any(i.code=='F04' and i.severity==Severity.ERROR for i in ValidationService().validate_all(data).by_task(task.id))
+    assert {'is_flexible','min_duration_min'}.isdisjoint(TaskFactory.to_dict(task))
 def test_sleep_double_warning_and_error(data):
     data.add(fixed(name='Ngủ 1',is_sleep='Có'));data.add(fixed(name='Ngủ 2',is_sleep='Có'))
     issues=ValidationService().validate_all(data).issues
@@ -67,7 +67,7 @@ def test_atomic_reject(data):
     result=service.submit_fixed_task(dict(name='Trùng',repeat='T2',start='08:00',end='09:00'))
     assert result.has_errors() and service.data is original
 def test_multiple_invalid_fields():
-    t,r=TaskFactory.from_raw(dict(name='',kind='urgent',deadline='bad',importance=20,remaining_min=0,chunk_min=90,chunk_max=30))
+    t,r=TaskFactory.from_raw(dict(name='',mandatory='maybe',deadline='bad',importance=20,remaining_min=0,chunk_min=90,chunk_max=30))
     assert t is None and len(r.issues)>=6
 def test_buffer_step():
     with pytest.raises(ValueError):BufferPolicy(7)

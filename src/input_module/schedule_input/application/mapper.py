@@ -30,22 +30,20 @@ class TaskFactory:
             days=read('repeat',RepeatParser.parse,'F01','')
             day=read('one_off_date',DateTimeParser.day,'F01') if not days else None
             start=read('start',DateTimeParser.time,'F02'); end=read('end',lambda v:DateTimeParser.time(v,True),'F02')
-            flex=read('is_flexible',BoolParser.parse,'F03','Không'); sleep=False
             tr=None
             if start is not None and end is not None:
                 try:tr=TimeRange(start,end)
                 except ValueError as ex:r.add('F02',Severity.ERROR,'end',id,str(ex))
-            duration=tr.duration_min() if tr else 1440
-            minimum=read('min_duration_min',lambda v:bounded(v,1,duration),'F03',duration) if flex else duration
             prep=read('prep_min',lambda v:bounded(v,0,90),'F09',0)
             after=read('after_min',lambda v:bounded(v,0,60),'F10',0)
             removable=read('removable_when_busy',BoolParser.parse,'F11','Không')
             if r.has_errors():return None,r
-            return FixedTask(id,name,RepeatRule(days,day),tr,flex,Flexibility(minimum,duration),sleep,prep,after,bool(removable)),r
-            if raw.get('mandatory') is None or str(raw.get('mandatory')).strip()=='':
-            # Dữ liệu cũ (còn cột kind): soft = không bắt buộc, còn lại = bắt buộc
-                legacy=str(raw.get('kind') or '').strip().casefold()
-                if legacy:raw=dict(raw,mandatory='Không' if legacy=='soft' else 'Có')
+            return FixedTask(id,name,RepeatRule(days,day),tr,prep_min=prep,after_min=after,removable=removable),r
+        mandatory_value=raw.get('mandatory')
+        if mandatory_value is None or not str(mandatory_value).strip():
+            # Preserve the meaning of older deadline records that only have kind.
+            if str(raw.get('kind') or '').strip().casefold()=='soft':
+                raw=dict(raw,mandatory=False)
         mandatory=read('mandatory',BoolParser.parse,'V02','Có')
         focus=read('focus',FocusLevel,'V02','high')
         importance=read('importance',lambda v:bounded(v,1,3),'V03',2)
@@ -65,7 +63,7 @@ class TaskFactory:
             row['prep_min']=t.prep_min
             row['after_min']=t.after_min
             row['removable_when_busy']=t.removable
-            row.update(repeat_days=[d.value for d in Weekday if d in t.repeat.days],one_off_date=t.repeat.one_off_date.isoformat() if t.repeat.one_off_date else None,start=hh(t.time_range.start),end=hh(t.time_range.end),is_flexible=t.is_flexible,min_duration_min=t.flexibility.min_min if t.is_flexible else None)
+            row.update(repeat_days=[d.value for d in Weekday if d in t.repeat.days],one_off_date=t.repeat.one_off_date.isoformat() if t.repeat.one_off_date else None,start=hh(t.time_range.start),end=hh(t.time_range.end))
         else:
             row.update(mandatory=t.mandatory,importance=t.importance,deadline=t.deadline.isoformat(timespec='minutes'),remaining_min=t.remaining_min,focus=t.focus.value,buffer_min=t.buffer.minutes,earliest_start=t.earliest_start.isoformat(timespec='minutes') if t.earliest_start else None,chunk_min=t.chunk.min_min,chunk_max=t.chunk.max_min)
         return row

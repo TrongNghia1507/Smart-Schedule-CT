@@ -48,15 +48,14 @@ def test_english_table_roundtrip_and_user_text():
     rows=table_payload(data.fixed_tasks,True,report,'en')
     assert rows[1]['raw']['repeat']=='Mon–Sun'
     assert rows[0]['meta']['duration']=='3 h 30 min'
-    assert rows[0]['meta']['rigidity']=='Rigid 100%'
     for original,row in zip(data.fixed_tasks,rows):
         restored,issues=TaskFactory.from_raw(row['raw'],True)
         assert not issues.has_errors()
         assert restored==original
     assert BoolParser.parse('Yes') is True and BoolParser.parse('No') is False
     name='Hạn chót ngoài tuần đang lập lịch.'
-    message=f'Chồng giờ với “{name}”. Hãy sửa giờ hoặc độ co dãn.'
-    assert tr(message,'en')==f'Overlaps with “{name}”. Adjust the time or flexibility.'
+    message=f'Chồng giờ với “{name}”. Hãy sửa giờ.'
+    assert tr(message,'en')==f'Overlaps with “{name}”. Adjust the time.'
     assert tr(message,'vi')==message
 
 

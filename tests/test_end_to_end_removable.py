@@ -14,6 +14,14 @@ from schedule_input.domain.models import (  # noqa: E402
 )
 
 from conflict_resolver.ai.advisor import Settings  # noqa: E402
+from conflict_resolver.calendar_view import (  # noqa: E402
+    BLOCK_COLORS,
+    Block,
+    calendar_events,
+    deadline_styles,
+    option_preview_html,
+    schedule_blocks,
+)
 from conflict_resolver.planning import (  # noqa: E402
     PlanningSession,
     context_from_snapshot,
@@ -102,6 +110,24 @@ def test_option3_end_to_end_removes_whole_occurrence():
     assert len(removes) == 1
     assert removes[0]["name"] == "Cà phê"
     assert len(removes[0]["task_ids"]) == 2   # sự kiện + chuẩn bị
+    blocks = schedule_blocks(option.full_schedule, option.active_windows)
+    week = date(2026, 10, 19)
+    styles = deadline_styles([{"id": target, "importance": 3}])
+    preview = option_preview_html("Phương án 3", week, blocks, styles, {}, "vi")
+    assert "③ Nộp báo cáo" in preview and "Cà phê" not in preview
+    assert styles[target][1] in preview
+    shades = []
+    for level, mark in enumerate("①②③", 1):
+        styles = deadline_styles([{"id": target, "importance": level}])
+        events = calendar_events(week, blocks, styles, {})
+        deadline = next(event for event in events if "deadline-band" in event["classNames"])
+        assert deadline["backgroundColor"] == styles[target][1]
+        assert deadline["title"].startswith(mark)
+        assert deadline["start"].startswith("2026-10-19T")
+        shades.append(deadline["backgroundColor"])
+    for index in (1, 3, 5):
+        light, medium, dark = (int(shade[index:index + 2], 16) for shade in shades)
+        assert light > medium > dark
 
     session.apply(target, 3, report.schedule_version)
 
@@ -109,3 +135,20 @@ def test_option3_end_to_end_removes_whole_occurrence():
     assert all(
         "Cà phê" not in f.name for f in session.context.fixed_tasks
     )
+
+
+def test_calendar_preserves_fixed_colors_and_distinguishes_tasks_at_same_importance():
+    styles = deadline_styles([{"id": "a", "importance": 2}, {"id": "b", "importance": 2}])
+    blocks = [
+        Block(480, 510, "A (1/2)", "deadline", "a"),
+        Block(530, 560, "A (2/2)", "deadline", "a"),
+        Block(560, 600, "B", "deadline", "b"),
+        Block(600, 660, "Custom", "fixed", "F2@0.0"),
+        Block(660, 720, "Default", "fixed", "F3@0.0"),
+    ]
+    events = calendar_events(date(2026, 10, 19), blocks, styles, {"F2": "#409c92"})
+    first, second, other, custom, default = events
+    assert first["backgroundColor"] == second["backgroundColor"] != other["backgroundColor"]
+    assert all(event["title"].startswith("② ") for event in (first, second, other))
+    assert custom["backgroundColor"] == "#409c92"
+    assert default["backgroundColor"] == BLOCK_COLORS["fixed"][0]
