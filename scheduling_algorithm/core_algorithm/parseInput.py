@@ -59,6 +59,7 @@ def parse_task(raw: dict, cfg: Config) -> Task:
         splittable=splittable,
         min_chunk=min_chunk,
         max_chunk=max_chunk,
+        kind=raw.get("kind", "hard" if raw.get("mandatory", True) else "soft"),
     )
 
 def parse_fixed(raw_list: list[dict], cfg: Config) -> list[FixedTask]:

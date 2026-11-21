@@ -1,17 +1,150 @@
 import asyncio
 import json
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import streamlit as st
-from .calendar_view import PREVIEW_CSS, option_preview_html, schedule_blocks
+from scheduling_algorithm.core_algorithm.history import load_schedule_history, save_selected_schedule
+from .calendar_view import (
+    PREVIEW_CSS, calendar_events, deadline_styles as build_deadline_styles,
+    option_preview_html, schedule_blocks,
+)
 from .presentation import describe_changes
 from .errors import SolverInconclusive
 from .ai.advisor import get_settings
-from .models import Policy
+from .models import Interval, Policy, ScheduleEntry
 from .planning import (
     PlanningSession,
     context_from_snapshot,
 )
+
+
+def _history_schedule_data(record, lang):
+    """Rebuild display data from a snapshot, without changing the live session."""
+    week_start = date.fromisoformat(record["week_start"])
+    context, result = record["context"], record["result"]
+    tasks = context.get("tasks", [])
+    names = {task["id"]: task["name"] for task in tasks}
+    entries = [
+        ScheduleEntry(kind="TASK", ref_id=chunk["task_id"],
+                      name=names.get(chunk["task_id"], chunk["task_id"]),
+                      start=chunk["start"], end=chunk["end"],
+                      buffer_end=chunk.get("buffer_end", chunk["end"]))
+        for chunk in result.get("chunks", [])
+    ]
+    entries.extend(
+        ScheduleEntry(kind="FIXED", ref_id=fixed["id"], name=fixed["name"],
+                      start=fixed["interval"]["start"], end=fixed["interval"]["end"],
+                      ancillary=fixed.get("ancillary", False))
+        for fixed in context.get("fixed_tasks", [])
+    )
+    entries.sort(key=lambda entry: (entry.start, entry.end, entry.ref_id))
+    windows = [Interval(**window) for window in context.get("active_windows", [])]
+    styles = build_deadline_styles([
+        {"id": task["id"], "importance": task.get("importance", 2)} for task in tasks
+    ])
+    blocks = schedule_blocks(entries, windows, lang)
+    return week_start, entries, blocks, styles
+
+
+def render_history(lang="vi"):
+    """Browse all saved weeks independently of the current planning result."""
+    try:
+        records = load_schedule_history()
+    except (OSError, ValueError) as exc:
+        st.error("Không đọc được lịch sử: " + str(exc))
+        return
+    if not records:
+        st.info("Chưa có lịch được lưu. Hãy lưu lịch hiện tại hoặc áp dụng một option để tạo phiên bản đầu tiên.")
+        return
+
+    try:
+        weeks = sorted({record["week_start"] for record in records}, reverse=True)
+        for week in weeks:
+            date.fromisoformat(week)
+        by_id = {record["id"]: record for record in records}
+    except (KeyError, TypeError, ValueError) as exc:
+        st.error("Thông tin phiên bản trong history không hợp lệ: " + str(exc))
+        return
+
+    def week_label(value):
+        if value is None:
+            return "Tất cả các tuần"
+        start = date.fromisoformat(value)
+        return f"{start:%d/%m/%Y} – {start + timedelta(days=6):%d/%m/%Y}"
+
+    selected_week = st.selectbox("Tuần của lịch", options=[None] + weeks,
+                                 format_func=week_label, key="schedule_history_week")
+    choices = [record["id"] for record in records
+               if selected_week is None or record["week_start"] == selected_week]
+
+    def record_label(record_id):
+        record = by_id[record_id]
+        title = record.get("title") or (
+            f"Lịch {week_label(record['week_start'])} · Phiên bản {record.get('version', 'cũ')}"
+        )
+        return title + " · " + record.get("saved_at_display", record.get("saved_at", ""))
+
+    record_id = st.selectbox("Chọn phiên bản đã lưu", options=choices,
+                             format_func=record_label, key="schedule_history_version")
+    record = by_id[record_id]
+    try:
+        week_start, entries, blocks, styles = _history_schedule_data(record, lang)
+    except (KeyError, TypeError, ValueError) as exc:
+        st.error("Không dựng được lịch từ phiên bản này: " + str(exc))
+        return
+
+    st.write(record.get("title") or record_label(record_id))
+    saved_display = record.get("saved_at_display")
+    if not saved_display and record.get("saved_at"):
+        try:
+            saved_display = datetime.fromisoformat(record["saved_at"]).astimezone(
+                timezone(timedelta(hours=7))
+            ).strftime("%d/%m/%Y %H:%M:%S")
+        except ValueError:
+            saved_display = record["saved_at"]
+    if saved_display:
+        st.caption("Đã lưu lúc " + saved_display + " · giờ Việt Nam")
+    if record.get("description"):
+        st.write(record["description"])
+
+    remaining = record["result"].get("unscheduled") or {}
+    if remaining:
+        names = {task["id"]: task["name"] for task in record["context"].get("tasks", [])}
+        st.warning("Phiên bản này còn task chưa xếp: " + ", ".join(
+            f"{names.get(task_id, task_id)} ({minutes} phút)" for task_id, minutes in remaining.items()
+        ))
+    else:
+        st.success("Phiên bản này đã xếp đầy đủ các task còn giữ.")
+
+    from streamlit_calendar import calendar
+
+    calendar(
+        events=calendar_events(week_start, blocks, styles, {}),
+        options={
+            "initialView": "timeGridWeek", "initialDate": week_start.isoformat(),
+            "firstDay": 1, "locale": "vi" if lang == "vi" else "en-gb",
+            "headerToolbar": False, "allDaySlot": False, "height": 580,
+            "editable": False, "eventDurationEditable": False,
+            "slotMinTime": "00:00:00", "slotMaxTime": "24:00:00", "scrollTime": "06:00:00",
+            "displayEventEnd": True,
+            "eventTimeFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
+            "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
+        },
+        key=f"saved_schedule_calendar_{record_id}_{lang}",
+    )
+    if st.checkbox("Xem bảng chi tiết theo thời gian", key="schedule_history_table"):
+        origin = datetime.combine(week_start, datetime.min.time())
+        rows = [{
+            "Công việc": entry.name,
+            "Loại": "Task" if entry.kind == "TASK" else "Chuẩn bị / đi về" if entry.ancillary else "Fixed task",
+            "Bắt đầu": (origin + timedelta(minutes=entry.start)).strftime("%d/%m/%Y %H:%M"),
+            "Kết thúc": (origin + timedelta(minutes=entry.end)).strftime("%d/%m/%Y %H:%M"),
+        } for entry in entries]
+        st.dataframe(rows, hide_index=True, use_container_width=True)
+    st.download_button("Tải phiên bản lịch này (JSON)",
+                       data=json.dumps(record, ensure_ascii=False, indent=2),
+                       file_name=f"schedule_{record['week_start']}_v{record.get('version', 'old')}.json",
+                       mime="application/json", key="download_schedule_history")
 
 
 def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
@@ -19,6 +152,8 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
     week_start = date.fromisoformat(snapshot.to_dict()["window"]["week_start"])
 
     with controls:
+        with st.expander("Xem lịch sử lịch đã lưu"):
+            render_history(lang)
         st.subheader("Xếp lịch và xử lý conflict")
         morning, evening = st.columns(2)
         earlier = morning.number_input(
@@ -32,6 +167,7 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
                 policy = Policy(max_earlier_minutes=earlier, max_later_minutes=later)
                 st.session_state.planning = PlanningSession(context_from_snapshot(snapshot, policy))
                 st.session_state.planning_snapshot = token
+                st.session_state.planning_applied_options = []
             except ValueError as exc:
                 st.error(str(exc))
 
@@ -39,6 +175,14 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
 
     if session is None or st.session_state.get("planning_snapshot") != token:
         return
+
+    history_notice = st.session_state.pop("schedule_history_notice", None)
+    if history_notice:
+        level, message = history_notice
+        if level == "success":
+            st.success(message)
+        else:
+            st.error(message)
 
     try:
         result = session.plan()
@@ -155,22 +299,76 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
                     disabled=not option.is_available,
                 ):
                     try:
-                        session.apply(
+                        selected_result = session.apply(
                             target_id,
                             option.option_id,
                             report.schedule_version,
                             duration,
                         )
 
+                        chosen_action = dict(option.action_payload)
+                        if option.option_id == 2 and duration is not None:
+                            chosen_action["new_duration"] = duration
+
+                        selected_option = {
+                            "source": "conflict_option",
+                            "target_task_id": target_id,
+                            "target_task_name": names.get(target_id, target_id),
+                            "option_id": option.option_id,
+                            "duration_min": duration,
+                            "action_payload": chosen_action,
+                            "schedule_version": session.context.schedule_version,
+                        }
+                        applied_options = list(st.session_state.get("planning_applied_options", []))
+                        applied_options.append(selected_option)
+                        st.session_state.planning_applied_options = applied_options
+
+                        try:
+                            save_selected_schedule(
+                                context=session.context,
+                                result=selected_result,
+                                week_start=week_start.isoformat(),
+                                selection={**selected_option, "applied_options": applied_options},
+                            )
+                        except (OSError, ValueError, TypeError) as exc:
+                            st.session_state.schedule_history_notice = (
+                                "error",
+                                "Phương án đã được áp dụng nhưng chưa lưu được history: "
+                                + str(exc) + ". Bạn có thể thử nút Lưu lịch hiện tại vào history.",
+                            )
+                        else:
+                            st.session_state.schedule_history_notice = (
+                                "success", "Đã áp dụng phương án và lưu lịch vào history.",
+                            )
+
                         st.rerun()
 
-                    except ValueError as exc:
+                    except (ValueError, SolverInconclusive) as exc:
                         st.error(str(exc))
 
     else:
         st.success(
             "Đã xếp đầy đủ các task còn giữ."
         )
+
+    if st.button("Lưu lịch hiện tại vào history"):
+        try:
+            save_selected_schedule(
+                context=session.context,
+                result=result,
+                week_start=week_start.isoformat(),
+                selection={
+                    "source": "manual_save",
+                    "applied_options": st.session_state.get("planning_applied_options", []),
+                },
+            )
+        except (OSError, ValueError, TypeError) as exc:
+            st.error("Chưa lưu được history: " + str(exc))
+        else:
+            st.session_state.schedule_history_notice = (
+                "success", "Đã lưu lịch hiện tại vào history.",
+            )
+            st.rerun()
 
     export_data = {
         "context": session.context.model_dump(),

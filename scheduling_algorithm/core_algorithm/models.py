@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from typing import Literal
 
 MINUTES_PER_DAY = 1440
 
@@ -50,6 +51,11 @@ class Task:
 
     earliest_start: int = 0
     buffer_min: int = 0
+    kind: Literal["hard", "soft"] = "hard"
+
+    def __post_init__(self):
+        if self.kind not in ("hard", "soft"):
+            raise ValueError("Task kind must be 'hard' or 'soft'.")
 
 @dataclass
 class FixedTask:
