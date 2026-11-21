@@ -17,6 +17,7 @@ from .scheduler import CoreScheduler
 from .resolver import resolve
 
 BASELINE_TIME_LIMIT = 10.0
+ANALYZE_TIME_LIMIT = 5.0
 
 engine = CoreScheduler(
     require_all=False,
@@ -142,7 +143,7 @@ class PlanningSession:
     hint_chunks: list = field(default_factory=list)
     def plan(self):
         if self.cached_plan is None:
-            engine = CoreScheduler(require_all=False, time_limit=5.0)  # xem ghi chú bên dưới
+            engine = CoreScheduler(require_all=False, time_limit=BASELINE_TIME_LIMIT)
 
             result = engine.plan(
                 self.context,
@@ -187,8 +188,10 @@ class PlanningSession:
 
         report = await resolve(
             scoped,
-            CoreScheduler(),
+            CoreScheduler(time_limit=ANALYZE_TIME_LIMIT),
             settings,
+            assume_conflict=True,
+            hint=baseline.chunks,
         )
 
         # Task khác vẫn chưa xếp được: option nào cũng không giải quyết
