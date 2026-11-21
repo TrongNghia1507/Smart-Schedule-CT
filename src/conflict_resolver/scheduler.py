@@ -172,14 +172,35 @@ class CoreScheduler:
         self.time_limit = time_limit
         self.last_status = None
 
-    def _config(self):
+    @staticmethod
+    def _slot_minutes(context):
+        """5 phút nếu MỌI mốc thời gian chia hết cho 5, ngược lại 1 phút."""
+        values = [context.now_minute]
+
+        for task in context.tasks:
+            values += [
+                task.remaining_min,
+                task.earliest_start,
+                task.chunk_min,
+                task.chunk_max,
+                task.buffer_min,
+            ]
+
+        for fixed in context.fixed_tasks:
+            values += [fixed.interval.start, fixed.interval.end]
+
+        for window in context.active_windows:
+            values += [window.start, window.end]
+
+        return 5 if all(value % 5 == 0 for value in values) else 1
+
+    def _config(self, slot_minutes=1):
         from scheduling_algorithm.core_algorithm.models import Config
 
-        # Đơn vị phút; đã có buffer riêng nên không cộng break mặc định.
         return Config(
             0,
             1440,
-            slot_minutes=1,
+            slot_minutes=slot_minutes,
             break_minutes=0,
             time_limit=self.time_limit,
             objective={"max_priority": 1},
@@ -235,7 +256,7 @@ class CoreScheduler:
 
         return pieces or None
 
-    def _plan_result(self, context, result):
+    def _plan_result(self, context, result, slot_minutes=1):
         self.last_status = result.status
         if result.status in INCONCLUSIVE:
             return PlanResult(
@@ -247,10 +268,10 @@ class CoreScheduler:
         chunks = [
             Chunk(
                 task_id=context.tasks[index].id,
-                start=start,
-                end=end,
+                start=start * slot_minutes,
+                end=end * slot_minutes,
                 buffer_end=(
-                    end + context.tasks[index].buffer_min
+                    end * slot_minutes + context.tasks[index].buffer_min
                 ),
             )
             for index, pieces in result.chunks.items()
@@ -343,6 +364,7 @@ class CoreScheduler:
         *,
         compress_id=None,
         compression_min=1,
+        compression_max=None,
         required_ids=(),
         hint=(),
     ):
@@ -470,19 +492,22 @@ class CoreScheduler:
             if task.id in required_ids
         }
 
+        slot = self._slot_minutes(context)
+
         result = solve(
             self._core_tasks(context),
             fixed,
-            self._config(),
+            self._config(slot),
             require_all=self.require_all,
             backward=self.backward,
             compress_id=compressed_index,
             compression_min=compression_min,
+            compression_max=compression_max,
             required_ids=protected_indices,
             hint=self._hint(context, hint),
         )
 
-        return self._plan_result(context, result)
+        return self._plan_result(context, result, slot)
         
     def max_placeable(self, context, target_id):
         """Số phút lớn nhất của target còn xếp được khi giữ nguyên

@@ -16,33 +16,23 @@ STRATEGIES = [
 ]
 
 
-def optimized_compression(context, target, scheduler):
+def optimized_compression(context, target, scheduler, outcome):
+    """Option 2: dùng mức giảm lớn nhất do compression.find_max_duration tính."""
     if not target.allow_compress:
         return
 
     if target.remaining_min <= target.min_remaining_min:
         return
 
-    from .scheduler import CoreScheduler
-
-    engine = CoreScheduler(
-        time_limit=scheduler.time_limit
-    )
-
-    result = engine.plan(
-        context,
-        compress_id=target.id,
-        compression_min=target.min_remaining_min,
-    )
-
-    if result.status != "FEASIBLE":
+    if outcome is None or outcome.duration is None or outcome.plan is None:
         return
 
-    duration = sum(
-        chunk.end - chunk.start
-        for chunk in result.chunks
-        if chunk.task_id == target.id
-    )
+    if outcome.duration < target.min_remaining_min:
+        return
+
+    result = outcome.plan
+    duration = outcome.duration
+    maximum_proven = outcome.proven
 
     candidate = context.model_copy(deep=True)
 
@@ -53,8 +43,6 @@ def optimized_compression(context, target, scheduler):
     )
 
     task.remaining_min = duration
-
-    maximum_proven = engine.last_status == "OPTIMAL"
 
     description = (
         f"Giảm {target.name}: "
@@ -86,8 +74,8 @@ def optimized_compression(context, target, scheduler):
             "Giảm thời lượng có thể làm giảm "
             "phạm vi công việc."
         ],
+        result,
     )
-
 def optimized_relaxation(context, target, scheduler):
     from .scheduler import CoreScheduler
 
@@ -233,12 +221,17 @@ def optimized_relaxation(context, target, scheduler):
     )
 
 
-def compute_deficit(context, target, scheduler, baseline):
-    """Số phút thiếu thật của target."""
+def compute_deficit(context, target, scheduler, baseline, compression=None):
+    """Số phút thiếu thật = yêu cầu - mức lớn nhất còn xếp được
+    (cùng kết quả với option 2)."""
     if scheduler.name != "core-cp-sat":
         return sum(baseline.unscheduled.values())
 
-    placeable = scheduler.max_placeable(context, target.id)
+    placeable = (
+        compression.duration or 0
+        if compression is not None
+        else 0
+    )
 
     return target.remaining_min - placeable
 async def resolve(context, scheduler, settings):
@@ -264,7 +257,16 @@ async def resolve(context, scheduler, settings):
             verification_engine=scheduler.name,
             options=[],
         )
+    compression = None
 
+    if scheduler.name == "core-cp-sat":
+        from .compression import find_max_duration
+
+        compression = find_max_duration(
+            context,
+            target,
+            time_limit=max(scheduler.time_limit, 3.0),
+        )
     options = []
 
     for option_id, option_type, generator in STRATEGIES:
@@ -285,10 +287,11 @@ async def resolve(context, scheduler, settings):
 
         if scheduler.name == "core-cp-sat":
             if option_id == 2:
-                candidates = optimized_compression(
+                    candidates = optimized_compression(
                     context,
                     target,
                     scheduler,
+                    compression,
                 )
             elif option_id == 3:
                 candidates = optimized_relaxation(
@@ -380,6 +383,7 @@ async def resolve(context, scheduler, settings):
             target,
             scheduler,
             baseline,
+            compression,
         ),
         ai_status=ai_status,
         verification_engine=scheduler.name,

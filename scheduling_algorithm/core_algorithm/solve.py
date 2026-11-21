@@ -338,6 +338,7 @@ def solve(
     backward=False,
     compress_id=None,
     compression_min=1,
+    compression_max=None,
     required_ids=(),
     elastic=None,   # MỚI: list[ElasticBlock]
     step=15,        # MỚI
@@ -357,11 +358,23 @@ def solve(
             if task.id == compress_id
         )
 
+                # chunk.length tính theo SLOT nên biên cũng phải là slot
+        # (bản cũ truyền thẳng số PHÚT).
+        upper_minutes = target.duration - 1
+        if compression_max is not None:
+            upper_minutes = min(upper_minutes, compression_max)
+
+        low_slots = max(1, -(-compression_min // cfg.slot_minutes))
+        high_slots = cfg.to_slot(upper_minutes)
+
         duration_var = model.NewIntVar(
-            compression_min,
-            target.duration - 1,
+            low_slots,
+            max(low_slots, high_slots),
             "compressed_duration",
         )
+
+        if high_slots < low_slots:
+            model.Add(duration_var < low_slots)
 
     for task in tasks:
         present[task.id] = model.NewBoolVar(
