@@ -1,5 +1,5 @@
 from .ai.advisor import apply_fallback, enrich_options
-from .models import ConflictReport, Option
+from .models import ConflictReport, Option, PlanResult
 from .strategies.options import (
     compress_candidates,
     exclude_candidates,
@@ -234,18 +234,27 @@ def compute_deficit(context, target, scheduler, baseline, compression=None):
     )
 
     return target.remaining_min - placeable
-async def resolve(context, scheduler, settings):
+async def resolve(context, scheduler, settings, *, assume_conflict=False, hint=None):
     target = next(
         task
         for task in context.tasks
         if task.id == context.target_task_id
     )
 
-    baseline = scheduler.plan(context)
+    if assume_conflict:
+        baseline = PlanResult(
+            status="NOT_FOUND",
+            chunks=[],
+            unscheduled={target.id: target.remaining_min},
+        )
+    else:
+        baseline = scheduler.plan(context)
+
     if baseline.status == "UNKNOWN":
         raise SolverInconclusive(
-            "Chưa phân tích được conflict: solver hết thời gian."
-            )
+            "Chưa phân tích được conflict: solver hết thời gian "
+            f"(trạng thái solver: {baseline.solver_status})."
+        )
 
     if baseline.status == "FEASIBLE":
         return ConflictReport(
@@ -329,7 +338,10 @@ async def resolve(context, scheduler, settings):
 
                     result = engine.plan(candidate)
                 else:
-                    result = scheduler.plan(candidate)
+                    if hint and scheduler.name == "core-cp-sat":
+                        result = scheduler.plan(candidate, hint=hint)
+                    else:
+                        result = scheduler.plan(candidate)
 
                 # Toàn bộ task được giữ phải xếp đủ.
                 if result.status != "FEASIBLE":
