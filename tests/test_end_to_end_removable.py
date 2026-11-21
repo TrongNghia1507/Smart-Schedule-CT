@@ -1,20 +1,16 @@
 """Input (cột "xóa được khi bận") -> snapshot -> context -> option 3."""
 import asyncio
-import sys
 from datetime import date, datetime
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "src" / "input_module"))
-
-from schedule_input.application.mapper import TaskFactory  # noqa: E402
-from schedule_input.application.preview import SnapshotBuilder  # noqa: E402
-from schedule_input.domain.models import (  # noqa: E402
+from schedule_input.application.mapper import TaskFactory
+from schedule_input.application.preview import SnapshotBuilder
+from schedule_input.domain.models import (
     PlanningWindow,
     ScheduleInput,
 )
 
-from conflict_resolver.ai.advisor import Settings  # noqa: E402
-from conflict_resolver.calendar_view import (  # noqa: E402
+from conflict_resolver.ai.advisor import Settings
+from conflict_resolver.calendar_view import (
     BLOCK_COLORS,
     Block,
     calendar_events,
@@ -22,7 +18,7 @@ from conflict_resolver.calendar_view import (  # noqa: E402
     option_preview_html,
     schedule_blocks,
 )
-from conflict_resolver.planning import (  # noqa: E402
+from conflict_resolver.planning import (
     PlanningSession,
     context_from_snapshot,
 )

@@ -7,3 +7,6 @@ __pycache__/
 
 .pytest_cache/
 .ruff_cache/
+
+# Runtime data from checkouts made before the Streamlit app moved.
+/src/input_module/data/

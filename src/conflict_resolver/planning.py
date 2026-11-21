@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 
-from mvp.ui_adapter import (
+from schedule_preparation.ui_adapter import (
     snapshot_to_raw,
     apply_ui_overrides,
 )
-from mvp.normalizer import normalize
+from schedule_preparation.normalizer import normalize
 
 from .models import (
     ConflictContext,

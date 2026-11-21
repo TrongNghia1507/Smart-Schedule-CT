@@ -16,9 +16,19 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src", "."]
+where = ["src"]
 include = [
     "conflict_resolver*",
-    "mvp*",
+    "schedule_input*",
+    "schedule_preparation*",
     "scheduling_algorithm*",
 ]
+namespaces = false
+
+[tool.setuptools.package-data]
+schedule_input = ["infrastructure/sample.json", "ui/table_component/index.html"]
+scheduling_algorithm = ["history/schedule_history.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
