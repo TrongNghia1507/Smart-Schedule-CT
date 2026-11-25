@@ -3,7 +3,9 @@ import json
 from datetime import date, datetime, timedelta, timezone
 
 import streamlit as st
-from scheduling_algorithm.core_algorithm.history import load_schedule_history, save_selected_schedule
+from scheduling_algorithm.core_algorithm.history import (
+    DEFAULT_HISTORY_PATH, load_schedule_history, save_selected_schedule,
+)
 from .calendar_view import (
     PREVIEW_CSS, calendar_events, deadline_styles as build_deadline_styles,
     option_preview_html, schedule_blocks,
@@ -16,6 +18,11 @@ from .planning import (
     PlanningSession,
     context_from_snapshot,
 )
+
+
+def _history_path():
+    """Mỗi người dùng đăng nhập có file lịch sử riêng; không đăng nhập thì dùng file chung cũ."""
+    return st.session_state.get("history_path", DEFAULT_HISTORY_PATH)
 
 
 def _history_schedule_data(record, lang):
@@ -49,7 +56,7 @@ def _history_schedule_data(record, lang):
 def render_history(lang="vi"):
     """Browse all saved weeks independently of the current planning result."""
     try:
-        records = load_schedule_history()
+        records = load_schedule_history(_history_path())
     except (OSError, ValueError) as exc:
         st.error("Không đọc được lịch sử: " + str(exc))
         return
@@ -329,6 +336,7 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
                                 result=selected_result,
                                 week_start=week_start.isoformat(),
                                 selection={**selected_option, "applied_options": applied_options},
+                                path=_history_path(),
                             )
                         except (OSError, ValueError, TypeError) as exc:
                             st.session_state.schedule_history_notice = (
@@ -361,6 +369,7 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
                     "source": "manual_save",
                     "applied_options": st.session_state.get("planning_applied_options", []),
                 },
+                path=_history_path(),
             )
         except (OSError, ValueError, TypeError) as exc:
             st.error("Chưa lưu được history: " + str(exc))
@@ -375,6 +384,17 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
         "result": result.model_dump(),
     }
 
+    user = st.session_state.get("auth_user")
+    applied = list(st.session_state.get("planning_applied_options", []))
+    download_args = {}
+    if user is not None:
+        from user_portal.ui_rating import finalize_schedule
+
+        # Tải lịch xuống cũng được xem là đã chốt lịch: bảng đánh giá sẽ tự mở.
+        download_args = {"on_click": finalize_schedule,
+                         "args": (user, export_data["context"], export_data["result"],
+                                  week_start.isoformat(), applied)}
+
     st.download_button(
         "Lưu lịch và trạng thái JSON",
         data=json.dumps(
@@ -384,5 +404,11 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
         ),
         file_name="schedule.json",
         mime="application/json",
+        **download_args,
     )
+    if user is not None:
+        from user_portal.ui_rating import render_finalize_and_rating
+
+        render_finalize_and_rating(user, export_data["context"], export_data["result"],
+                                   week_start.isoformat(), applied)
     return session.context, result

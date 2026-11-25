@@ -22,6 +22,7 @@ include = [
     "schedule_input*",
     "schedule_preparation*",
     "scheduling_algorithm*",
+    "user_portal*",
 ]
 namespaces = false
 
