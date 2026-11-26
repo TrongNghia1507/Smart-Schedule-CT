@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from backend.clock import now_vn_naive
+from conflict_resolver.calendar_view import contrasting_text
 from schedule_input.application.calendar_edit import moved_task
 from schedule_input.application.import_export import ImportExportService
 from schedule_input.application.mapper import TaskFactory
@@ -253,7 +254,7 @@ def preview(current_week: bool = False, current: Session = Depends(planner)):
             "id": f"{event.task_id}@{start}#{event.segment_index}", "title": event.title,
             "start": start, "end": end, "editable": not current_week,
             "backgroundColor": color, "borderColor": "#e4a83a" if event.task_id in overlaps else color,
-            "textColor": "#101820" if event.task_id in draft.colors else "#ffffff",
+            "textColor": contrasting_text(color),
             "extendedProps": {"task_id": event.task_id, "kind": "fixed"},
         })
     for task in data.fixed_tasks:
@@ -323,6 +324,13 @@ def export_csv(current: Session = Depends(planner)):
     with database() as conn:
         draft = load_draft(conn, current.user.id)
     return export_file(CsvXlsxGateway().write_mixed_rows(draft.service.data), "tasks.csv", "text/csv")
+
+
+@router.get("/example")
+def example_csv(lang: Literal["vi", "en"] = "vi", current: Session = Depends(planner)):
+    with database() as conn:
+        draft = load_draft(conn, current.user.id)
+    return export_file(CsvXlsxGateway().example(draft.service.data.window, lang), "tasks_example.csv", "text/csv")
 
 
 @router.get("/snapshot")

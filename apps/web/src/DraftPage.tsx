@@ -1,13 +1,14 @@
 import { Fragment, useState, type FormEvent } from 'react'
-import { API, type Client, type Draft, type Issue, type Task } from './api'
-import { ErrorBox, Issues, Modal, type T } from './ui'
+import { API, type Client, type Draft, type Issue, type Lang, type Task } from './api'
+import { dateInWeek } from './dates'
+import { ErrorBox, Icon, Issues, Modal, type T } from './ui'
 
 export type Edit = { fixed: boolean; task?: Task; inline?: boolean }
 type ImportPreview = { revision: number; valid: number; unknown: string[]; rows: { line: number; issues: Issue[] }[] }
 type Change = Record<string, unknown> & { action: string }
 export type ChangeDraft = (command: Change) => Promise<Draft>
 
-function taskFields(form: HTMLFormElement, fixed: boolean, repeated: boolean) {
+function taskFields(form: HTMLFormElement, fixed: boolean, repeated: boolean, endOfWeek: string | null) {
   const values = new FormData(form)
   const { color, ...fields } = Object.fromEntries(values)
   if (fixed) {
@@ -15,6 +16,7 @@ function taskFields(form: HTMLFormElement, fixed: boolean, repeated: boolean) {
     fields.one_off_date = repeated ? '' : fields.one_off_date ?? ''
     delete fields.day
   }
+  if (!fixed && endOfWeek) fields.deadline = endOfWeek
   return { fields, ...(fixed && { color: color ? String(color) : null }) }
 }
 
@@ -23,6 +25,8 @@ export function TaskEditor({ edit, draft, change, close, reload, t }: {
 }) {
   const row = edit.task ?? {}
   const fixed = edit.fixed
+  const endOfWeek = `${dateInWeek(draft.settings.week_start, 6)}T23:59`
+  const [freeDeadline, setFreeDeadline] = useState(row.deadline === endOfWeek)
   const [repeated, repeat] = useState(!row.one_off_date)
   const [customColor, setCustomColor] = useState(Boolean(draft.colors[row.id]))
   const [error, setError] = useState<unknown>(null)
@@ -35,7 +39,7 @@ export function TaskEditor({ edit, draft, change, close, reload, t }: {
     setBusy(true)
     setError(null)
     try {
-      await change({ action: 'task', task_id: row.id ?? null, fixed, ...taskFields(form, fixed, repeated) })
+      await change({ action: 'task', task_id: row.id ?? null, fixed, ...taskFields(form, fixed, repeated, freeDeadline ? endOfWeek : null) })
       delete form.dataset.dirty
       close()
     } catch (failure) {
@@ -80,10 +84,17 @@ export function TaskEditor({ edit, draft, change, close, reload, t }: {
           defaultValue={draft.colors[row.id] ?? '#81aa58'} />}
       </div>
     </> : <>
+      <label className="check deadline-toggle"><input type="checkbox" checked={freeDeadline}
+        onChange={event => setFreeDeadline(event.target.checked)} />
+        <span>{t('Không có hạn chót cụ thể', 'No specific deadline')}
+          <small>{t('Dùng 23:59 Chủ nhật của tuần lập lịch.', 'Uses Sunday at 23:59 of the planning week.')}</small></span>
+      </label>
       <div className="form-grid">
-        <label>{t('Hạn chót', 'Deadline')}<input name="deadline" type="datetime-local" defaultValue={row.deadline} required /></label>
-        <label>{t('Bắt đầu sớm nhất', 'Earliest start')}<input name="earliest_start" type="datetime-local" defaultValue={row.earliest_start} /></label>
-        {minutes('remaining_min', t('Thời lượng (phút)', 'Duration (minutes)'), undefined, 1)}
+        <label hidden={freeDeadline}>{t('Hạn chót', 'Deadline')}<input name="deadline" type="datetime-local"
+          defaultValue={row.deadline} required={!freeDeadline} disabled={freeDeadline} /></label>
+        <label>{t('Thời lượng (phút)', 'Duration (minutes)')}<input name="remaining_min"
+          placeholder={t('Ví dụ 60 hoặc 1h30', 'For example, 60 or 1h30')} defaultValue={row.remaining_min} maxLength={24} required /></label>
+        {minutes('buffer_min', t('Nghỉ giữa phiên (phút)', 'Break after session (minutes)'), 15, 0, 60, 5)}
       </div>
       <div className="form-grid">
         {yesNo('mandatory', t('Bắt buộc', 'Required'), 'Có')}
@@ -95,13 +106,16 @@ export function TaskEditor({ edit, draft, change, close, reload, t }: {
           <option value="high">{t('Cao', 'High')}</option><option value="low">{t('Thấp', 'Low')}</option>
         </select></label>
       </div>
-      <div className="form-grid">
-        {minutes('chunk_min', t('Phiên tối thiểu (phút)', 'Min. session (minutes)'), undefined, 1)}
-        {minutes('chunk_max', t('Phiên tối đa (phút)', 'Max. session (minutes)'), undefined, 1)}
-        {minutes('buffer_min', t('Nghỉ giữa phiên (phút)', 'Break after session (minutes)'), 15, 0, 60, 5)}
-      </div>
-      {!row.id && <p className="muted">{t('Để trống độ dài phiên để dùng mặc định theo độ tập trung.',
-        'Leave session lengths blank to use the defaults for the selected focus level.')}</p>}
+      <details className="advanced-fields" open={Boolean(row.earliest_start)}>
+        <summary>{t('Tùy chọn nâng cao', 'Advanced settings')}</summary>
+        <div className="form-grid">
+          <label>{t('Bắt đầu sớm nhất', 'Earliest start')}<input name="earliest_start" type="datetime-local" defaultValue={row.earliest_start} /></label>
+          {minutes('chunk_min', t('Phiên tối thiểu (phút)', 'Min. session (minutes)'), undefined, 1)}
+          {minutes('chunk_max', t('Phiên tối đa (phút)', 'Max. session (minutes)'), undefined, 1)}
+        </div>
+        {!row.id && <p className="muted">{t('Để trống độ dài phiên để dùng mặc định theo độ tập trung.',
+          'Leave session lengths blank to use the defaults for the selected focus level.')}</p>}
+      </details>
     </>}
     <ErrorBox error={error} t={t} reload={() => { close(); reload() }} />
     <div className="inline end"><button type="button" onClick={close} disabled={busy}>{t('Hủy', 'Cancel')}</button>
@@ -111,18 +125,27 @@ export function TaskEditor({ edit, draft, change, close, reload, t }: {
     onClose={close} busy={busy} t={t}>{editor}</Modal>
 }
 
-function TaskTable({ fixed, draft, edit, setEdit, change, reload, t, remove, busy }: {
+function TaskTable({ fixed, draft, edit, setEdit, change, reload, lang, t, remove, busy }: {
   fixed: boolean; draft: Draft; edit: Edit | null; setEdit: (edit: Edit | null) => void; change: ChangeDraft
-  reload: () => void; t: T; remove: (id: string) => void; busy: boolean
+  reload: () => void; lang: Lang; t: T; remove: (id: string) => void; busy: boolean
 }) {
   const rows = fixed ? draft.fixed_tasks : draft.deadline_tasks
   const fields = fixed ? [t('Ngày', 'Days'), t('Khung giờ', 'Time'), t('Chuẩn bị / sau', 'Prep / after')] :
     [t('Hạn chót', 'Deadline'), t('Thời lượng', 'Duration'), t('Quan trọng', 'Importance')]
+  const weekdays = t('T2,T3,T4,T5,T6,T7,CN', 'Mon,Tue,Wed,Thu,Fri,Sat,Sun').split(',')
+  const shortDate = new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
+    day: '2-digit', month: '2-digit', timeZone: 'UTC',
+  })
+  const daysLabel = (task: Task) => task.repeat ? task.repeat.split(',').map(day =>
+    weekdays[['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].indexOf(day)] ?? day).join(', ') :
+    shortDate.format(new Date(task.one_off_date))
   return <section className="panel">
     <div className="section-head">
-      <div><h2>{fixed ? t('Việc cố định', 'Fixed tasks') : t('Việc có hạn chót', 'Deadline tasks')}</h2>
-        <span className="muted">{rows.length} {t('công việc', 'tasks')}</span></div>
-      <button onClick={() => setEdit({ fixed })} disabled={busy}>+ {t('Thêm việc', 'Add task')}</button>
+      <div className="panel-heading"><span className={fixed ? 'panel-icon mint' : 'panel-icon lavender'}><Icon name={fixed ? 'calendar' : 'clock'} /></span>
+        <div><h2>{fixed ? t('Việc cố định', 'Fixed tasks') : t('Việc có hạn chót', 'Deadline tasks')}</h2>
+          <span className="muted">{rows.length} {t('công việc', 'tasks')}</span></div>
+      </div>
+      <button onClick={() => setEdit({ fixed })} disabled={busy}><Icon name="plus" />{t('Thêm việc', 'Add task')}</button>
     </div>
     {rows.length ? <div className="table-wrap"><table>
       <thead><tr><th>{t('Công việc', 'Task')}</th>{fields.map(label => <th key={label}>{label}</th>)}
@@ -130,8 +153,9 @@ function TaskTable({ fixed, draft, edit, setEdit, change, reload, t, remove, bus
       <tbody>{rows.map(row => <Fragment key={row.id}>
         <tr>
           <th scope="row">{fixed && <span className="swatch" style={{ background: draft.colors[row.id] ?? '#187463' }} />}{row.name}</th>
-          {(fixed ? [row.repeat || row.one_off_date, `${row.start}–${row.end}`, `${row.prep_min} / ${row.after_min}′`] :
-            [row.deadline.replace('T', ' '), `${row.remaining_min}′`, `${row.importance}/3`]).map((value, index) => <td key={index}>{value}</td>)}
+          {(fixed ? [daysLabel(row), `${row.start}–${row.end}`, `${row.prep_min} / ${row.after_min}′`] :
+            [`${shortDate.format(new Date(row.deadline.slice(0, 10)))} · ${row.deadline.slice(11, 16)}`,
+              `${row.remaining_min}′`, `${row.importance}/3`]).map((value, index) => <td className="table-value" key={index}>{value}</td>)}
           <td className="row-actions">
             <button className="quiet" disabled={busy} onClick={() => setEdit({ fixed, task: row, inline: true })}>{t('Sửa', 'Edit')}</button>
             <button className="quiet danger" disabled={busy} onClick={() => remove(row.id)}>{t('Xóa', 'Delete')}</button>
@@ -145,8 +169,9 @@ function TaskTable({ fixed, draft, edit, setEdit, change, reload, t, remove, bus
   </section>
 }
 
-export function DraftPage({ draft, client, change, adopt, reload, advance, t }: {
-  draft: Draft; client: Client; change: ChangeDraft; adopt: (draft: Draft) => void; reload: () => void; advance: () => void; t: T
+export function DraftPage({ draft, client, change, adopt, reload, advance, lang, t }: {
+  draft: Draft; client: Client; change: ChangeDraft; adopt: (draft: Draft) => void; reload: () => void
+  advance: () => void; lang: Lang; t: T
 }) {
   const [edit, setEdit] = useState<Edit | null>(null)
   const [confirm, setConfirm] = useState<Change | null>(null)
@@ -155,6 +180,7 @@ export function DraftPage({ draft, client, change, adopt, reload, advance, t }: 
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const { settings } = draft
+  const issueCount = draft.issues.filter(issue => issue.severity === 'Error').length
 
   async function run(command: Change) {
     setBusy(true)
@@ -184,8 +210,18 @@ export function DraftPage({ draft, client, change, adopt, reload, advance, t }: 
     <div className="page-heading"><div><h1>{t('Nhập dữ liệu', 'Task input')}</h1>
       <p>{t('Chọn tuần, thêm công việc và kiểm tra dữ liệu trước khi xếp lịch.',
         'Choose a week, add tasks, and review your input before scheduling.')}</p></div>
-      <button className="primary" onClick={advance} disabled={busy || Boolean(edit) || draft.issues.some(issue => issue.severity === 'Error')}>
-        {t('Xem trước lịch', 'Preview calendar')} <span aria-hidden="true">→</span></button>
+      <button className="primary" onClick={advance} disabled={busy || Boolean(edit) || issueCount > 0}>
+        <Icon name="calendar" />{t('Xem trước lịch', 'Preview calendar')}</button>
+    </div>
+    <div className="draft-stats">
+      <div><span className="panel-icon mint"><Icon name="calendar" /></span><div>
+        <strong>{draft.fixed_tasks.length}</strong><span>{t('Việc cố định', 'Fixed tasks')}</span></div></div>
+      <div><span className="panel-icon lavender"><Icon name="clock" /></span><div>
+        <strong>{draft.deadline_tasks.reduce((minutes, task) => minutes + Number(task.remaining_min), 0)}′</strong>
+        <span>{t('Tổng thời lượng việc có hạn', 'Deadline workload')}</span></div></div>
+      <div><span className={issueCount ? 'panel-icon amber' : 'panel-icon mint'}><Icon name="check" /></span><div>
+        <strong>{issueCount ? t(`${issueCount} mục cần sửa`, `${issueCount} to fix`) : t('Sẵn sàng', 'Ready')}</strong>
+        <span>{t('Kiểm tra dữ liệu', 'Input validation')}</span></div></div>
     </div>
     <ErrorBox error={error} t={t} reload={() => { setError(null); setPreview(null); setConfirm(null); reload() }} />
     {draft.notes.length > 0 && <div className="notice">{draft.notes.map(note => <p key={note}>{note}</p>)}</div>}
@@ -209,10 +245,14 @@ export function DraftPage({ draft, client, change, adopt, reload, advance, t }: 
       </form>
     </section>
     {([true, false] as const).map(fixed => <TaskTable key={String(fixed)} fixed={fixed} draft={draft} edit={edit}
-      setEdit={setEdit} change={change} reload={reload} t={t} busy={busy}
+      setEdit={setEdit} change={change} reload={reload} lang={lang} t={t} busy={busy}
       remove={task_id => setConfirm({ action: 'delete', task_id })} />)}
     <section className="panel">
-      <div className="section-head"><h2>CSV</h2><a className="button" href={API + '/draft/export'}>{t('Xuất CSV', 'Export CSV')}</a></div>
+      <div className="section-head">
+        <div className="panel-heading"><span className="panel-icon lavender"><Icon name="files" /></span><h2>CSV</h2></div>
+        <div className="inline"><a className="button" href={API + `/draft/example?lang=${lang}`}>{t('Tải CSV mẫu', 'Download sample CSV')}</a>
+          <a className="button" href={API + '/draft/export'}>{t('Xuất CSV', 'Export CSV')}</a></div>
+      </div>
       <details><summary>{t('Nhập công việc từ CSV', 'Import tasks from CSV')}</summary>
         <p className="muted">{t('Dùng CSV UTF-8 có cột task_type (fixed hoặc deadline). Tải CSV hiện tại để lấy tiêu đề cột.',
           'Use UTF-8 CSV with a task_type column (fixed or deadline). Export the current CSV for the column headers.')}</p>

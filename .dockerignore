@@ -6,5 +6,5 @@
 **/.pytest_cache
 apps/web/node_modules
 apps/web/dist
-apps/streamlit
+apps/streamlit/data
 tests

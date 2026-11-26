@@ -70,7 +70,7 @@ def default_db_path() -> Path:
     configured = os.environ.get("SCHEDULE_PORTAL_DB")
     if configured:
         return Path(configured)
-    return Path(__file__).resolve().parents[2] / "apps" / "streamlit" / "data" / "portal.db"
+    return Path(os.environ.get("SCHEDULE_WEB_DATA_DIR") or ".data") / "portal.db"
 
 
 @contextmanager

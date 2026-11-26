@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { anonymous, ApiError, createClient, type Draft, type Lang, type Session } from './api'
 import { AuthPage } from './AuthPage'
 import { DraftPage, type ChangeDraft } from './DraftPage'
-import { ClockIcon, confirmDiscard, ErrorBox, translate } from './ui'
+import { weekLabel } from './dates'
+import { Icon, confirmDiscard, ErrorBox, translate } from './ui'
 import './styles.css'
 
 type Theme = 'light' | 'dark'
@@ -62,7 +63,7 @@ function App() {
     client.get<Draft>('/draft').then(value => { if (active) setDraft(value) })
       .catch(failure => { if (active) setError(failure) })
     return () => { active = false }
-  }, [client, session, loadVersion])
+  }, [client, session, loadVersion, lang])
 
   useEffect(() => {
     const pop = () => {
@@ -119,24 +120,40 @@ function App() {
   }
 
   const planner = session?.user.role === 'user'
-  const tabs: [Page, string][] = [['input', t('Nhập dữ liệu', 'Input')], ['calendar', t('Lịch tuần', 'Calendar')],
-    ['history', t('Lịch sử', 'History')]]
-  return <div onChange={event => {
+  const tabs = [
+    { id: 'input', label: t('Nhập dữ liệu', 'Input'), icon: 'list' },
+    { id: 'calendar', label: t('Lịch tuần', 'Calendar'), icon: 'calendar' },
+    { id: 'history', label: t('Lịch sử', 'History'), icon: 'history' },
+  ] as const
+  const initials = session?.user.full_name.trim().split(/\s+/).slice(-2).map(word => [...word][0]).join('').toUpperCase()
+  const brand = <a href={base} className="brand" onClick={event => {
+    if (planner && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault()
+      navigate('input')
+    }
+  }}><span className="brand-mark"><Icon name="clock" /></span><span>Smart Schedule <b>CT</b></span></a>
+  return <div className={planner ? 'app-shell planning-shell' : 'app-shell'} onChange={event => {
     const form = (event.target as HTMLElement).closest<HTMLFormElement>('form[data-track]')
     if (form) form.dataset.dirty = 'true'
   }}>
+    {planner && <aside className="sidebar">
+      {brand}
+      <nav aria-label={t('Điều hướng chính', 'Main navigation')}>{tabs.map(({id, label, icon}) =>
+        <a key={id} href={base + (id === 'input' ? '' : id) + location.search} aria-current={page === id ? 'page' : undefined}
+          onClick={event => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            navigate(id)
+          }}><Icon name={icon} /><span>{label}</span></a>)}</nav>
+      {draft && <div className="sidebar-week">
+        <Icon name="calendar" />
+        <div><span>{t('Tuần lập lịch', 'Planning week')}</span><strong>{weekLabel(draft.settings.week_start, lang)}</strong></div>
+      </div>}
+    </aside>}
+    <div className="app-content">
     <header className="topbar">
       <div className="topbar-inner">
-        <a href={base} className="brand" onClick={event => {
-          if (planner) { event.preventDefault(); navigate('input') }
-        }}><span className="brand-mark"><ClockIcon /></span>Smart Schedule CT</a>
-        {planner && <nav aria-label={t('Điều hướng chính', 'Main navigation')}>{tabs.map(([id, label]) =>
-          <a key={id} href={base + (id === 'input' ? '' : id) + location.search} aria-current={page === id ? 'page' : undefined}
-            onClick={event => {
-              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-              event.preventDefault()
-              navigate(id)
-            }}>{label}</a>)}</nav>}
+        {planner ? <span className="topbar-label">{t('Không gian lập lịch', 'Planning workspace')}</span> : brand}
         <div className="account">
           <label className="compact-label"><span className="sr-only">{t('Ngôn ngữ', 'Language')}</span>
             <select aria-label={t('Ngôn ngữ', 'Language')} value={lang} onChange={event => preference('lang', event.target.value)}>
@@ -145,9 +162,11 @@ function App() {
           <button className="icon-button" title={t('Đổi giao diện sáng / tối', 'Toggle light / dark theme')}
             aria-label={t('Đổi giao diện sáng / tối', 'Toggle light / dark theme')}
             onClick={() => preference('theme', theme === 'light' ? 'dark' : 'light')}>
-            <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
+            <Icon name={theme === 'light' ? 'moon' : 'sun'} />
           </button>
-          {session && <><span className="account-name" title={session.user.full_name}>{session.user.full_name}</span>
+          {session && <><span className="account-person">
+            <span className="account-avatar" aria-hidden="true">{initials}</span>
+            <span className="account-name" title={session.user.full_name}>{session.user.full_name}</span></span>
             <button onClick={() => void signOut()}>{t('Đăng xuất', 'Sign out')}</button></>}
         </div>
       </div>
@@ -168,10 +187,11 @@ function App() {
           onRestore={value => { setDraft(value); navigate('input', false) }} reload={reload} lang={lang} t={t} />}
       </Suspense>
       {planner && draft && page === 'input' && <DraftPage draft={draft} client={client} change={change} adopt={setDraft}
-        reload={reload} advance={() => navigate('calendar')} t={t} />}
+        reload={reload} advance={() => navigate('calendar')} lang={lang} t={t} />}
       {(!session || (planner && !draft)) && (error ? session && <button onClick={reload}>{t('Thử lại', 'Retry')}</button> :
         <p role="status">{t('Đang tải…', 'Loading…')}</p>)}
     </main>}
+    </div>
   </div>
 }
 

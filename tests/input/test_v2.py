@@ -24,16 +24,6 @@ def test_demo_real_time():
     assert not ValidationService().validate_all(data).has_errors()
     assert b'is_sleep' not in CsvXlsxGateway().write_rows(data,True)
 
-def test_repeated_calendar_events_keep_unique_ids():
-    from schedule_input.application.preview import PreviewService
-    from schedule_input.ui.calendar_view import calendar_events
-    data=SampleDataProvider().load()
-    events=calendar_events(data,PreviewService().build(data),ValidationService().validate_all(data))
-    assert len(events)==30
-    assert len({e['id'] for e in events})==30
-    task=data.fixed_tasks[1]
-    assert sum(e.get('extendedProps',{}).get('task_id')==task.id for e in events)==7
-
 def test_migration_and_no_override(tmp_path):
     source=files('schedule_input.infrastructure').joinpath('sample.json')
     path=tmp_path/'draft.json';path.write_bytes(source.read_bytes())

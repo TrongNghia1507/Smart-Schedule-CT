@@ -15,7 +15,6 @@ from conflict_resolver.calendar_view import (
     Block,
     calendar_events,
     deadline_styles,
-    option_preview_html,
     schedule_blocks,
 )
 from conflict_resolver.planning import (
@@ -109,9 +108,9 @@ def test_option3_end_to_end_removes_whole_occurrence():
     blocks = schedule_blocks(option.full_schedule, option.active_windows)
     week = date(2026, 10, 19)
     styles = deadline_styles([{"id": target, "importance": 3}])
-    preview = option_preview_html("Phương án 3", week, blocks, styles, {}, "vi")
-    assert "③ Nộp báo cáo" in preview and "Cà phê" not in preview
-    assert styles[target][1] in preview
+    preview = calendar_events(week, blocks, styles, {})
+    assert any(event["title"].startswith("③ Nộp báo cáo") for event in preview)
+    assert not any("Cà phê" in event["title"] for event in preview)
     shades = []
     for level, mark in enumerate("①②③", 1):
         styles = deadline_styles([{"id": target, "importance": level}])

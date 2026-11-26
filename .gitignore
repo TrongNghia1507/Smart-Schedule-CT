@@ -14,3 +14,4 @@ __pycache__/
 
 # Runtime data from checkouts made before the Streamlit app moved.
 /src/input_module/data/
+/apps/streamlit/data/

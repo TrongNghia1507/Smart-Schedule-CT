@@ -5,7 +5,6 @@ from schedule_input.application.import_export import ImportExportService
 from schedule_input.application.services import TaskInputService
 from schedule_input.infrastructure.io import CsvXlsxGateway
 from schedule_input.infrastructure.repositories import InMemoryRepository
-from schedule_input.ui.csv_help import example_csv
 
 
 def service():
@@ -15,7 +14,7 @@ def service():
 
 def test_example_import_and_combined_export_roundtrip():
     s=service()
-    data,reports,notes=ImportExportService().preview_mixed(s,example_csv(s.data.window).encode('utf-8-sig'))
+    data,reports,notes=ImportExportService().preview_mixed(s,CsvXlsxGateway().example(s.data.window))
     assert not notes and all(not r.has_errors() for _,r in reports)
     assert len(data.fixed_tasks)==len(data.deadline_tasks)==1
     assert data.fixed_tasks[0].prep_min==15 and data.fixed_tasks[0].after_min==10
@@ -48,14 +47,3 @@ def test_mixed_invalid_rows_do_not_discard_valid_rows():
 ])
 def test_bad_headers_and_extra_cells(content):
     with pytest.raises(ValueError):CsvXlsxGateway().read_mixed_rows(content.encode())
-
-
-def test_single_upload_and_collapsed_help(app_file):
-    from streamlit.testing.v1 import AppTest
-    app=AppTest.from_file(app_file,default_timeout=30).run()
-    assert not app.exception
-    assert len(app.get('file_uploader'))==1
-    assert not any(r.label=='Loại bảng' for r in app.radio)
-    help_box=next(e for e in app.expander if e.label=='ⓘ Hướng dẫn input')
-    assert not help_box.proto.expanded
-    assert any('task_type,name,repeat' in c.value for c in app.code)

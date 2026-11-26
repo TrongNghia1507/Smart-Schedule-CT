@@ -23,32 +23,9 @@ Nháp và màu được lưu trong SQLite theo tài khoản. Khi hai tab chỉnh
 - `window.sleep.default_bands` chứa các dải ngủ trong tuần; `is_default` luôn true. Consumer phải dùng schema 2 và thang importance 1–3.
 - `InputSnapshot.to_json()` xuất JSON; `to_dict()` trả bản sao độc lập, không cho sửa payload gốc. Gọi qua `TaskInputService.confirm()` để kiểm tra lại trước khi bàn giao.
 
-## Phạm vi phiên bản
+## Nhập CSV và chỉnh sửa lịch
 
-Đã triển khai phần luồng nhập, các luật V/F/G, bảng và form, lịch tuần, CSV, JSON và snapshot. XLSX, kéo thả lịch và xếp việc deadline chưa triển khai theo phạm vi đã thống nhất.
-
-Giao diện bám bố cục preview: header xanh, khung bảng, badge, lịch tuần và panel tóm tắt. Form sửa là hộp thoại Streamlit, chưa neo cạnh khối lịch như hình. Ô giờ cố định hỗ trợ HH:mm/24:00. Bảng dùng component HTML riêng với theme đồng bộ và sửa trực tiếp; lỗi được hiển thị theo dòng và ngay dưới bảng.
-
-
-## Kiểm thử
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q tests/input
-```
-
-Component lịch: https://github.com/im-perativa/streamlit-calendar
-API giao diện: https://docs.streamlit.io/develop/api-reference
-# Cập nhật giao diện nhập và preview
-
-- Nhập CSV dùng một file cho cả hai loại task, phân biệt bằng cột `task_type` (`fixed`/`deadline`). Trong mục Nhập CSV có khung **ⓘ Hướng dẫn input** mặc định đóng, kèm ví dụ theo tuần đang lập lịch và nút tải mẫu. Các cột không áp dụng để trống; dữ liệu được thêm vào danh sách hiện tại. Nút **Xuất tất cả task CSV** xuất cùng định dạng để có thể nhập lại. File CSV cũ thiếu `task_type` cần thêm cột này trước khi nhập qua UI.
-
-- Kéo thả dùng callback của streamlit-calendar 1.5 và vùng `st.fragment`: lưu/kiểm tra trước khi cập nhật preview, giữ nguyên key của calendar để không tạo lại iframe sau mỗi lần kéo. Snapshot cũ được vô hiệu hóa khi lưu thành công; thao tác bị từ chối sẽ đồng bộ lại lịch đã lưu. Các callback cũ không được áp dụng lần thứ hai.
-
-- Chạy `start.ps1 -Background` sẽ giữ web bằng `serve_forever.py`: khi tiến trình Streamlit thoát, nó được khởi động lại sau khoảng 3 giây. F5 mở lại phiên từ bản nháp đã lưu; nội dung form chưa bấm Lưu có thể mất. `stop.ps1` dừng cả supervisor và server. Tính năng này không tự bật máy hoặc tự chạy sau khi Windows khởi động lại.
-
-- Fixed task có `prep_min` (0–90 phút, mặc định 0). Khoảng chuẩn bị nằm trước giờ bắt đầu, được tính khi kiểm tra chồng lịch và hiển thị trên preview. File nháp cũ thiếu trường này vẫn đọc được với giá trị 0. Adapter MVP hiện hỗ trợ trường này.
-- Chọn **Không có hạn chót cụ thể** để dùng 23:59 Chủ nhật của tuần đang lập lịch. Form ẩn ngày/giờ khi chọn; JSON chỉ lưu `deadline`, không thêm cờ free deadline. Khi đổi tuần, deadline đã lưu vẫn là mốc ngày cụ thể.
-- Preview cho kéo việc cố định theo bước 10 phút, giữ nguyên thời lượng. Việc lặp được di chuyển cả chuỗi (các thứ lặp dịch theo số ngày kéo). Nếu validation báo lỗi thì thay đổi không được lưu. Công việc deadline chưa có vị trí lịch nên chưa kéo được ở preview input.
-- Trong cửa sổ sửa việc ở preview có bảng màu hai hàng và nút Mặc định. Màu được lưu ở `calendar_colors.json` cạnh file nháp, không đưa vào snapshot/task JSON. Khoảng ngủ và chuẩn bị không kéo được.
-
-- Fixed task có thêm `after_min` (0–60 phút, mặc định 0), giữ chỗ ngay sau giờ kết thúc. Khoảng này được lưu trong bản nháp/CSV/snapshot, hiển thị trên preview và tính vào kiểm tra chồng lịch, thời gian trống. Adapter MVP chuyển tiếp trường này.
+- CSV dùng chung cho việc cố định và việc có hạn. Cột `task_type` nhận `fixed` hoặc `deadline`. Nút **Tải CSV mẫu** tạo ví dụ theo tuần đang lập lịch.
+- Với việc chưa có hạn cụ thể, chọn **Không có hạn chót cụ thể** để dùng 23:59 Chủ nhật. Bản nháp lưu ngày giờ cụ thể.
+- Các khối giờ ngủ, chuẩn bị và di chuyển có màu riêng. Trong bản nháp, việc cố định nhận màu tùy chọn và có thể kéo theo bước 10 phút.
+- Trên điện thoại, lịch mở ở chế độ từng ngày. Chọn một ngày ở trên lịch hoặc chuyển sang **Cả tuần**.

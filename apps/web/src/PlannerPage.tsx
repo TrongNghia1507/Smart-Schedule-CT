@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { EventApi, EventDropArg } from '@fullcalendar/core'
 import { API, type Client, type Draft, type Lang, type Option, type Plan, type Preview } from './api'
-import { Calendar, weekLabel } from './Calendar'
+import { Calendar } from './Calendar'
+import { weekLabel } from './dates'
 import { TaskEditor, type ChangeDraft, type Edit } from './DraftPage'
-import { ErrorBox, Issues, Modal, type T } from './ui'
+import { ErrorBox, Icon, Issues, Modal, type T } from './ui'
 import { RatingForm } from './RatingForm'
 
 const optionTitle = (id: number, t: T) => [
@@ -179,15 +180,17 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
 
   const eventTask = selected && [...draft.fixed_tasks, ...draft.deadline_tasks].find(task => task.id === selected.extendedProps.task_id)
   return <>
-    <div className="page-heading"><div><h1>{t('Lịch tuần', 'Weekly calendar')}</h1><p>{weekLabel(week, lang)}</p></div>
-      <button onClick={toInput}>← {t('Về nhập dữ liệu', 'Back to input')}</button>
+    <div className="page-heading calendar-heading"><div><h1>{t('Lịch tuần', 'Weekly calendar')}</h1>
+      <p className="date-label"><Icon name="calendar" />{weekLabel(week, lang)}</p></div>
+      <button onClick={toInput}><Icon name="list" />{t('Về nhập dữ liệu', 'Back to input')}</button>
     </div>
     <ErrorBox error={error} t={t} reload={refresh} />
     {status && <p className="notice" role="status">{status}</p>}
     <div className="planner-layout">
       <section className="panel calendar-panel">
         <div className="section-head">
-          <h2>{visiblePlan ? t('Lịch đã xếp', 'Scheduled week') : t('Xem trước', 'Week preview')}</h2>
+          <div className="panel-heading"><span className="panel-icon mint"><Icon name="calendar" /></span>
+            <h2>{visiblePlan ? t('Lịch đã xếp', 'Scheduled week') : t('Xem trước', 'Week preview')}</h2></div>
           <div className="inline">
             {activePlan && !currentWeek && <button onClick={() => setShowPlan(value => !value)} disabled={busy}>
               {visiblePlan ? t('Xem bản nháp', 'Show draft') : t('Xem lịch đã xếp', 'Show schedule')}</button>}
@@ -209,7 +212,8 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
       </section>
       <aside className="planner-aside">
         <section className="panel">
-          <h2>{t('Xếp lịch', 'Schedule tasks')}</h2>
+          <div className="panel-heading"><span className="panel-icon lavender"><Icon name="clock" /></span>
+            <h2>{t('Xếp lịch', 'Schedule tasks')}</h2></div>
           <form className="form-stack" onSubmit={event => { event.preventDefault(); runPlan() }}>
             <label>{t('Có thể dậy sớm hơn (phút)', 'Can wake earlier (minutes)')}
               <input type="number" min="0" max="60" required value={earlier} onChange={event => setEarlier(+event.target.value)} /></label>
@@ -226,7 +230,8 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
             {t('Tải snapshot JSON', 'Download JSON snapshot')}</a>}
         </section>
         {activePlan && <section className="panel form-stack">
-          <h2>{t('Kết quả', 'Result')}</h2>
+          <div className="panel-heading"><span className={activePlan.unscheduled.length ? 'panel-icon amber' : 'panel-icon mint'}><Icon name="check" /></span>
+            <h2>{t('Kết quả', 'Result')}</h2></div>
           <p className="muted">{activePlan.optimal ? t('Solver đã chứng minh lịch tối ưu.', 'Solver proved optimality.') :
             t('Lịch tốt nhất tìm được trong thời gian chạy.', 'Best schedule found within the time limit.')}</p>
           {activePlan.unscheduled.length ? <>

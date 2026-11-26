@@ -150,6 +150,30 @@ def test_conflict_and_rating_survive_restart():
         assert b"conflict" not in admin.get(API + "/admin/ratings.csv", params={"score": 4}).content
 
 
+def test_react_csv_template_and_recurring_calendar_colors():
+    with TestClient(app) as client:
+        headers = register(client, "calendar")
+        draft = client.get(API + "/draft", headers={"Accept-Language": "en"}).json()
+        assert draft["issues"][0]["message"] == "Please enter at least one task."
+        template = client.get(API + "/draft/example?lang=en")
+        assert template.content.startswith(b"\xef\xbb\xbf")
+        assert b"Class" in template.content
+        imported = client.post(API + "/draft/imports", params={"expected_revision": draft["revision"]},
+                               headers=headers, content=template.content).json()
+        original = imported["fixed_tasks"][0]
+        result = change(client, headers, imported["revision"], action="task", fixed=True, task_id=original["id"],
+                        fields=original, color="#182337")
+        assert result.status_code == 200, result.text
+        preview = client.get(API + "/draft/preview").json()
+        events = [event for event in preview["events"] if event.get("editable")]
+        assert len(events) == len({event["id"] for event in events}) == 2
+        assert {event["textColor"] for event in events} == {"#ffffff"}
+        assert all(event["extendedProps"]["task_id"] == original["id"] for event in events)
+        snapshot = client.get(API + "/draft/snapshot").json()
+        assert "color" not in snapshot["fixed_tasks"][0]
+        assert snapshot["fixed_tasks"][0]["after_min"] == 10
+
+
 def test_legacy_draft_and_color_import(tmp_path):
     source_dir = tmp_path / "old"
     source = source_dir / "portal.db"

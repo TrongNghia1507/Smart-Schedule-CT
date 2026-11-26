@@ -33,7 +33,7 @@ include = [
 namespaces = false
 
 [tool.setuptools.package-data]
-schedule_input = ["infrastructure/sample.json", "ui/table_component/index.html"]
+schedule_input = ["infrastructure/sample.json"]
 scheduling_algorithm = ["history/schedule_history.json"]
 
 [tool.pytest.ini_options]

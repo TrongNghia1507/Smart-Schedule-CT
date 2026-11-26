@@ -66,13 +66,13 @@ Tài khoản admin có tên `admin`. Đặt biến môi trường `SCHEDULE_ADMI
 ## Kiểm thử
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install pytest -r apps/streamlit/requirements.txt
+.\.venv\Scripts\python.exe -m pip install pytest -r requirements.txt
 .\.venv\Scripts\python.exe -m pytest -q
 npm --prefix apps/web run typecheck
 .\.venv\Scripts\python.exe -m schedule_preparation.run_json examples/gui_snapshot.json --only validate
 .\.venv\Scripts\python.exe -m scheduling_algorithm.main examples/solver/input_test.json -o schedule_result.json
 ```
 
-Mã Streamlit trong repo phục vụ kiểm thử hồi quy đối chiếu với bản trước khi chuyển giao diện. Nhánh gốc `test_connect_conclusion` vẫn là điểm quay lại khi cần chạy riêng bản Streamlit với bộ dữ liệu cũ.
+React và Vite cung cấp giao diện. FastAPI, bộ kiểm tra nhập liệu và OR-Tools chạy bằng Python. Nhánh gốc `test_connect_conclusion` lưu phiên bản giao diện cũ.
 
 Chi tiết về [API React](docs/api-v1.md), [nhập liệu](docs/input.md), [bộ xếp lịch](docs/solver.md) và [hợp đồng xử lý xung đột](docs/conflict-contract.md).

@@ -1,5 +1,7 @@
 # Kết quả kiểm thử
 
+Báo cáo lịch sử của giao diện cũ. Phiên bản hiện tại dùng React và bộ kiểm thử được mô tả trong [README](../README.md).
+
 Ngày kiểm tra: 07/11/2026.
 
 Kết quả: **36 kiểm thử tự động đạt**, gồm nghiệp vụ/parser/lưu trữ, migration v1 → v2, importance 1–3, dữ liệu mẫu theo giờ thật và giao diện bằng Streamlit AppTest. Đổi theme sáng/tối và chuyển trang giữ theme đã qua kiểm thử.

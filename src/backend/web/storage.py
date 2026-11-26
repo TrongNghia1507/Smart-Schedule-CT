@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from user_portal.auth import DEFAULT_ADMIN_PASSWORD, init_portal
-from user_portal.db import connect
+from user_portal.db import connect, default_db_path as db_path
 from user_portal.security import verify_password
 
 SCHEMA = """
@@ -64,12 +64,6 @@ CREATE TABLE IF NOT EXISTS web_legacy_history_imports(
     PRIMARY KEY(user_id, history_id)
 );
 """
-
-
-def db_path() -> Path:
-    configured = os.environ.get("SCHEDULE_PORTAL_DB")
-    data_dir = os.environ.get("SCHEDULE_WEB_DATA_DIR")
-    return Path(configured) if configured else Path(data_dir or ".data") / "portal.db"
 
 
 def secure_cookies() -> bool:

@@ -43,7 +43,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 ```
 
-Nếu đã cài bằng `apps/streamlit/setup.ps1`, dùng luôn môi trường `.venv` đã tạo.
+Nếu đã cài phụ thuộc theo README, dùng môi trường `.venv` đã tạo.
 
 ## 3. Chạy chương trình
 

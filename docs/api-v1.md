@@ -11,7 +11,7 @@ FastAPI cung cấp OpenAPI ở `/docs` và `/openapi.json`. React và API dùng 
 | Tiền tố sau `/api/v1` | Thao tác |
 | --- | --- |
 | `/draft` | Đọc nháp, kiểm tra, tải snapshot, gửi lệnh chỉnh sửa với `expected_revision`, xem trước lịch tuần |
-| `/draft/imports` | Gửi CSV dạng octet-stream để xem trước hoặc nhập. Bước nhập nhận `expected_revision` của lần xem trước |
+| `/draft/imports` | Gửi CSV dạng octet-stream để xem trước hoặc nhập. Bước nhập nhận `expected_revision` của lần xem trước. `GET /draft/example` tải CSV mẫu theo tuần |
 | `/plans` | Xếp từ nháp, xem kế hoạch và tiếp tục sau khi tải lại. Khi tạo kế hoạch gửi `expected_revision` và `operation_id` |
 | `/plans/{id}/conflicts`, `/apply` | Phân tích, xem lịch theo phương án và áp dụng với `expected_version`. Bước áp dụng nhận `operation_id` và tự ghi một phiên bản lịch sử |
 | `/plans/{id}/history`, `/finalize`, `/download` | Lưu lịch, chốt và tải JSON. Khi lưu lịch sử thủ công gửi `operation_id` |

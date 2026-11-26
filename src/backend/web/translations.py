@@ -123,14 +123,8 @@ PATTERNS = [
 ]
 
 
-def language():
-    import streamlit as st
-
-    return st.session_state.get('ui_language', 'vi')
-
-
-def tr(value, lang=None):
-    if (lang or language()) != 'en' or not isinstance(value, str):
+def tr(value, lang='vi'):
+    if lang != 'en' or not isinstance(value, str):
         return value
     if value in EN:
         return EN[value]
@@ -141,7 +135,3 @@ def tr(value, lang=None):
     if value.startswith(prefix):
         return 'Invalid file settings; the original file is protected: ' + tr(value[len(prefix):], 'en')
     return value
-
-
-def weekday_labels(lang=None):
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] if (lang or language()) == 'en' else ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']

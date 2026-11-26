@@ -10,6 +10,17 @@ COMBINED_FIELDS=['task_type',*dict.fromkeys(FIELDS[True]+FIELDS[False])]
 def norm(s):return ' '.join(s.strip().casefold().split())
 class CsvXlsxGateway:
     # XLSX is intentionally a deferred Could feature; CSV is the supported gateway.
+    def example(self, window, lang='vi'):
+        stream = io.StringIO(newline='')
+        writer = csv.writer(stream)
+        writer.writerow(['task_type', 'name', 'repeat', 'start', 'end', 'prep_min', 'after_min',
+                         'mandatory', 'deadline', 'remaining_min'])
+        writer.writerow(['fixed', 'Class' if lang == 'en' else 'Học trên lớp', 'T2,T4', '08:00',
+                         '10:00', 15, 10, '', '', ''])
+        writer.writerow(['deadline', 'Homework' if lang == 'en' else 'Làm bài tập', '', '', '', '', '',
+                         'Yes' if lang == 'en' else 'Có', window.week_end().strftime('%d/%m/%Y') + ' 23:59', 90])
+        return stream.getvalue().encode('utf-8-sig')
+
     def read_mixed_rows(self,content):
         mapping={norm(x):x for x in COMBINED_FIELDS}
         mapping.update({norm(k):v for k,v in ALIASES.items()})

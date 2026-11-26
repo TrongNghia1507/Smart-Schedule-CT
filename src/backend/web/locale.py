@@ -1,6 +1,6 @@
 from contextvars import ContextVar
 
-from schedule_input.ui.i18n import tr
+from .translations import tr
 
 web_language = ContextVar("schedule_web_language", default="vi")
 

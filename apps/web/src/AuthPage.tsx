@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { anonymous, type Session } from './api'
-import { ClockIcon, ErrorBox, type T } from './ui'
+import { ErrorBox, Icon, type T } from './ui'
 
 export function AuthPage({ onSession, t }: { onSession: (session: Session) => void; t: T }) {
   const [register, setRegister] = useState(false)
@@ -30,12 +30,21 @@ export function AuthPage({ onSession, t }: { onSession: (session: Session) => vo
 
   return <main className="auth-layout">
     <aside className="auth-hero">
-      <ClockIcon />
-      <h1>{t('Lập lịch tuần', 'Plan your week')}</h1>
+      <span className="auth-symbol"><Icon name="calendar" /></span>
+      <h1>{t('Lập lịch cho cả tuần', 'Plan your whole week')}</h1>
       <p>{t('Sắp xếp việc cố định và hạn chót trong cùng một lịch tuần.',
         'Bring fixed commitments and deadlines together in one weekly calendar.')}</p>
       <div className="auth-calendar" aria-hidden="true">
-        <div className="auth-calendar-grid"><i /><i /><i /><i /><i /><i /></div>
+        <div className="auth-calendar-days">
+          {t('T2,T3,T4,T5,T6,T7,CN', 'Mon,Tue,Wed,Thu,Fri,Sat,Sun').split(',').map(day => <span key={day}>{day}</span>)}
+        </div>
+        <div className="auth-calendar-grid">
+          <i><b>08:00</b>{t('Lên lớp', 'Class')}</i>
+          <i><b>10:30</b>{t('Dự án', 'Project')}</i>
+          <i><b>09:00</b>{t('Ôn bài', 'Review')}</i>
+          <i><b>16:00</b>{t('Tập luyện', 'Workout')}</i>
+          <i><b>11:00</b>{t('Đọc sách', 'Reading')}</i>
+        </div>
       </div>
     </aside>
     <section className="panel auth-form">

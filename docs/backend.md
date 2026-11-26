@@ -2,7 +2,7 @@
 
 Tài liệu này mô tả lớp dịch vụ MySQL và TiDB. Điểm chạy hiện tại của React là `backend.web.app:app`, dùng API và SQLite theo [hướng dẫn web](api-v1.md).
 
-Backend là các hàm Python thuần, không phụ thuộc Streamlit. UI chỉ cần truyền `user_id` (lấy lúc đăng nhập) và `week_start` (ngày Thứ Hai, kiểu `date`).
+Backend gồm các hàm Python. Các hàm theo tài khoản nhận `user_id` và `week_start` (ngày Thứ Hai, kiểu `date`).
 
 ## Chạy lần đầu
 
@@ -51,7 +51,7 @@ repo = MySQLTaskRepository(user["id"], week_start)          # thay JsonFileRepos
 
 schedule_service.update_policy_settings(user["id"], week_start, 30, 30)
 view = schedule_service.run_schedule(user["id"], week_start, lang="vi")
-# view["events"]  -> đưa thẳng vào streamlit-calendar
+# view["events"]  -> dữ liệu lịch FullCalendar
 # view["unscheduled"] -> danh sách task kẹt: [{task_code, name, missing_minutes, ...}]
 
 if view["unscheduled"]:
@@ -94,4 +94,3 @@ csv_bytes = feedback_service.export_all_feedbacks_csv(admin_password)   # khu v�
 - Mỗi lịch `NOT_FOUND` chỉ áp dụng được **1** phương án; sau đó làm tiếp trên lịch mới (`apply_conflict_option` trả về lịch mới).
 - Trạng thái solver nằm trong `schedules.solver_state_json`, nên F5 hay khởi động lại server vẫn tiếp tục phân tích / áp dụng được.
 - `history`: mỗi lần áp dụng phương án tự tạo 1 phiên bản; `save_manual_history` tạo thêm khi người dùng bấm lưu. Mỗi phiên bản lưu kèm dữ liệu nhập (`input_snapshot_json`) nên `restore_history_input` khôi phục được bảng công việc của tuần đó.
-- Cần nối UI: thay `draft_repository()` trong `apps/streamlit/app.py` bằng `MySQLTaskRepository`, và thay các lời gọi `save_selected_schedule` / `load_schedule_history` trong `conflict_resolver/ui.py` bằng các hàm trên.

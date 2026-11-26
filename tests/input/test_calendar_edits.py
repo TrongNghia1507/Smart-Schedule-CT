@@ -63,33 +63,6 @@ def test_move_one_off_across_midnight():
     assert moved.time_range==TimeRange(10,70)
     with pytest.raises(ValueError):moved_task(original,'2026-11-16T23:30:00','2026-11-16T23:35:00')
 
-def test_free_deadline_form(app_file):
-    from streamlit.testing.v1 import AppTest
-    app=AppTest.from_file(app_file,default_timeout=30).run()
-    app.button(key='add_False').click().run()
-    next(c for c in app.checkbox if c.label=='Không có hạn chót cụ thể').check().run()
-    assert not app.exception
-    assert not any(d.label=='Ngày hạn chót' for d in app.date_input)
-
-def test_fixed_form_saves_and_reopens_after_time(app_file):
-    from streamlit.testing.v1 import AppTest
-    app=AppTest.from_file(app_file,default_timeout=30).run()
-    app.button(key='add_True').click().run()
-    next(x for x in app.text_input if x.label=='Tên công việc').set_value('After time regression')
-    next(x for x in app.text_input if x.label=='Giờ bắt đầu (HH:mm)').set_value('14:00')
-    next(x for x in app.text_input if x.label=='Giờ kết thúc (cho phép 24:00)').set_value('15:00')
-    next(x for x in app.slider if x.label=='Thời gian dự trù sau công việc (phút)').set_value(35).run()
-    next(b for b in app.button if b.label=='Lưu').click().run()
-    assert not app.exception
-    service=app.session_state.service
-    saved=next(t for t in service.data.fixed_tasks if t.name=='After time regression')
-    assert saved.after_min==35
-    loaded,_,_=service.repository.load(service.data)
-    assert loaded.get_by_id(saved.id).after_min==35
-    app.session_state.edit_request=(True,saved.id)
-    app.run()
-    assert next(x for x in app.slider if x.label=='Thời gian dự trù sau công việc (phút)').value==35
-
 def test_old_table_update_preserves_reserves(tmp_path):
     from schedule_input.application.services import TaskInputService
     data=ScheduleInput(PlanningWindow(date(2026,11,16),datetime(2026,11,16)))
@@ -102,43 +75,3 @@ def test_old_table_update_preserves_reserves(tmp_path):
     row['after_min']=0
     assert not service.submit(row,True).has_errors()
     assert service.data.get_by_id(original.id).after_min==0
-
-def test_calendar_callback_saves_once_and_rolls_back_conflict(tmp_path):
-    from schedule_input.application.services import TaskInputService
-    from schedule_input.application.calendar_callback import handle_calendar_event
-    data=ScheduleInput(PlanningWindow(date(2026,11,16),datetime(2026,11,16)))
-    original=task(prep_min=0);data.add(original)
-    data.add(task(name='Busy',start='10:00',end='11:00',prep_min=0))
-    service=TaskInputService(data,JsonFileRepository(tmp_path/'draft.json'))
-    state={'snapshot':'obsolete','rev':7}
-    def event(old,new,generation):
-        return {'callback':'eventChange','eventChange':{
-            'oldEvent':{'start':old},'event':{'start':new,
-            'extendedProps':{'task_id':original.id,'sync_revision':generation}}}}
-    first=event('2026-11-16T08:00:00','2026-11-16T08:20:00',0)
-    handle_calendar_event(service,state,first)
-    assert service.data.get_by_id(original.id).time_range.start==500
-    assert state['rev']==7 and 'snapshot' not in state and state['calendar_sync']==1
-    handle_calendar_event(service,state,first)
-    assert len(service.history)==1  # stale callback does not move the task twice
-    handle_calendar_event(service,state,event('2026-11-16T08:20:00','2026-11-16T10:00:00',1))
-    assert state['calendar_error'].has_errors() and state['calendar_sync']==2
-    assert service.data.get_by_id(original.id).time_range.start==500
-    loaded,_,_=service.repository.load(service.data)
-    assert loaded.get_by_id(original.id).time_range.start==500
-
-def test_color_is_separate_from_task_json(tmp_path, app_file):
-    from streamlit.testing.v1 import AppTest
-    from schedule_input.ui.preferences import COLORS,load_colors
-    app=AppTest.from_file(app_file,default_timeout=30).run()
-    fixed=task(); app.session_state.service.data.add(fixed)
-    app.session_state.page='preview'; app.session_state.edit_request=(True,fixed.id)
-    app.run()
-    assert not app.exception
-    next(b for b in app.button if b.help==COLORS[0]).click().run()
-    assert not app.exception
-    next(b for b in app.button if b.label=='Lưu').click().run()
-    assert not app.exception
-    assert app.session_state.task_colors[fixed.id]==COLORS[0]
-    assert 'color' not in TaskFactory.to_dict(app.session_state.service.data.get_by_id(fixed.id))
-    assert load_colors(app.session_state.service.repository.path.with_name('calendar_colors.json'))[fixed.id]==COLORS[0]
