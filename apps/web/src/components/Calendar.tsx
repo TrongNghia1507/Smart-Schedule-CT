@@ -5,8 +5,8 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import vi from '@fullcalendar/core/locales/vi'
 import enGb from '@fullcalendar/core/locales/en-gb'
 import type { EventApi, EventDropArg, EventInput } from '@fullcalendar/core'
-import type { Lang } from './api'
-import { dateInWeek } from './dates'
+import type { Lang } from '../lib/api'
+import { dateInWeek } from '../lib/dates'
 import type { T } from './ui'
 
 const plugins = [timeGridPlugin, interactionPlugin]

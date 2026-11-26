@@ -1,18 +1,18 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { anonymous, ApiError, createClient, type Draft, type Lang, type Session } from './api'
-import { AuthPage } from './AuthPage'
-import { DraftPage, type ChangeDraft } from './DraftPage'
-import { currentMonday, weekLabel } from './dates'
-import { Icon, confirmDiscard, ErrorBox, translate } from './ui'
+import { Icon, confirmDiscard, ErrorBox, translate } from './components/ui'
+import { anonymous, ApiError, createClient, type Draft, type Lang, type Session } from './lib/api'
+import { currentMonday, weekLabel } from './lib/dates'
+import { AuthPage } from './pages/AuthPage'
+import { DraftPage, type ChangeDraft } from './pages/DraftPage'
 import './styles.css'
 
 type Theme = 'light' | 'dark'
 type Page = 'input' | 'calendar' | 'history' | 'admin'
 const base = '/app/'
-const PlannerPage = lazy(() => import('./PlannerPage').then(module => ({ default: module.PlannerPage })))
-const HistoryPage = lazy(() => import('./HistoryPage').then(module => ({ default: module.HistoryPage })))
-const AdminPage = lazy(() => import('./AdminPage').then(module => ({ default: module.AdminPage })))
+const PlannerPage = lazy(() => import('./pages/PlannerPage').then(module => ({ default: module.PlannerPage })))
+const HistoryPage = lazy(() => import('./pages/HistoryPage').then(module => ({ default: module.HistoryPage })))
+const AdminPage = lazy(() => import('./pages/AdminPage').then(module => ({ default: module.AdminPage })))
 
 function initialPreference<T extends string>(key: string, values: T[], fallback: T): T {
   const query = new URLSearchParams(location.search).get(key)

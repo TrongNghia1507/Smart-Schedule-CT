@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { EventApi, EventDropArg } from '@fullcalendar/core'
-import { API, type Client, type Draft, type Lang, type Option, type Plan, type Preview } from './api'
-import { blockType, Calendar } from './Calendar'
-import { currentMonday, weekLabel } from './dates'
+import { blockType, Calendar } from '../components/Calendar'
+import { RatingForm } from '../components/RatingForm'
+import { ErrorBox, Icon, Issues, Modal, type T } from '../components/ui'
+import { API, type Client, type Draft, type Lang, type Option, type Plan, type Preview } from '../lib/api'
+import { currentMonday, weekLabel } from '../lib/dates'
 import { TaskEditor, type ChangeDraft, type Edit } from './DraftPage'
-import { ErrorBox, Icon, Issues, Modal, type T } from './ui'
-import { RatingForm } from './RatingForm'
 
 const optionTitle = (id: number, t: T) => [
   t('Bỏ việc khỏi tuần', 'Remove task from the week'),

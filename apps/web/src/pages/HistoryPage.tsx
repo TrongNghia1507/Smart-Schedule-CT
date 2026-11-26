@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { API, type Client, type Draft, type HistoryDetail, type HistorySummary, type Lang } from './api'
-import { blockType, Calendar } from './Calendar'
-import { weekLabel } from './dates'
-import { ErrorBox, Modal, type T } from './ui'
+import { blockType, Calendar } from '../components/Calendar'
+import { ErrorBox, Modal, type T } from '../components/ui'
+import { API, type Client, type Draft, type HistoryDetail, type HistorySummary, type Lang } from '../lib/api'
+import { weekLabel } from '../lib/dates'
 
 export function HistoryPage({ client, draft, onRestore, reload, lang, t }: {
   client: Client; draft: Draft; onRestore: (draft: Draft) => void; reload: () => void; lang: Lang; t: T

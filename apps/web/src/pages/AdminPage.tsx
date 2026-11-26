@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { API, type Client, type Lang } from './api'
-import { dateInWeek, vietnamDay } from './dates'
-import { ErrorBox, type T } from './ui'
+import { ErrorBox, type T } from '../components/ui'
+import { API, type Client, type Lang } from '../lib/api'
+import { dateInWeek, vietnamDay } from '../lib/dates'
 
 type UserRow = { id: number; username: string; full_name: string; user_group: string | null; email: string | null
   created_at: string; last_login_at: string | null; login_count: number; ratings: number }

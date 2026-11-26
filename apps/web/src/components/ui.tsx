@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { ApiError, type Issue, type Lang } from './api'
+import { ApiError, type Issue, type Lang } from '../lib/api'
 
 export type T = (vi: string, en: string) => string
 export const translate = (lang: Lang): T => (vi, en) => lang === 'vi' ? vi : en

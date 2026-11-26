@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { anonymous, type Session } from './api'
-import { ErrorBox, Icon, type T } from './ui'
+import { ErrorBox, Icon, type T } from '../components/ui'
+import { anonymous, type Session } from '../lib/api'
 
 export function AuthPage({ admin, onSession, t }: { admin: boolean; onSession: (session: Session) => void; t: T }) {
   const [register, setRegister] = useState(false)

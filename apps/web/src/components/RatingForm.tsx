@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Client } from './api'
+import type { Client } from '../lib/api'
 import { ErrorBox, type T } from './ui'
 
 type Scores = { satisfaction: number | null; importance: number }

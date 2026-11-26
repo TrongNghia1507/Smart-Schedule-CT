@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react'
-import { API, type Client, type Draft, type Issue, type Lang, type Task } from './api'
-import { dateInWeek } from './dates'
-import { ErrorBox, Icon, Issues, Modal, type T } from './ui'
+import { ErrorBox, Icon, Issues, Modal, type T } from '../components/ui'
+import { API, type Client, type Draft, type Issue, type Lang, type Task } from '../lib/api'
+import { dateInWeek } from '../lib/dates'
 
 export type Edit = { fixed: boolean; task?: Task; inline?: boolean; field?: string }
 type ImportPreview = { revision: number; valid: number; unknown: string[]; rows: { line: number; issues: Issue[] }[] }
