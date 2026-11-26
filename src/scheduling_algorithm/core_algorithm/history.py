@@ -47,6 +47,39 @@ def load_schedule_history(path: str | Path = DEFAULT_HISTORY_PATH) -> list[dict]
         return list(reversed(_read_history_document(Path(path))["schedules"]))
 
 
+def _write_history_document(destination: Path, history: dict) -> None:
+    """Replace the file only after the complete new document is written."""
+    serialized = json.dumps(history, ensure_ascii=False, indent=2, allow_nan=False)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
+                                dir=destination.parent, prefix=destination.name + ".",
+                                suffix=".tmp", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(serialized + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def delete_schedule_history(record_id: str, path: str | Path = DEFAULT_HISTORY_PATH) -> None:
+    """Delete only the selected record from this history file."""
+    if not isinstance(record_id, str) or not record_id:
+        raise ValueError("ID lịch sử không hợp lệ.")
+    destination = Path(path)
+    with _HISTORY_LOCK:
+        history = _read_history_document(destination)
+        remaining = [record for record in history["schedules"] if record.get("id") != record_id]
+        if len(remaining) == len(history["schedules"]):
+            raise ValueError("Lịch đã bị xóa hoặc không còn tồn tại. Hãy tải lại lịch sử.")
+        history["schedules"] = remaining
+        _write_history_document(destination, history)
+
+
 def _describe_option(action: dict, week_start: date) -> str:
     option_id = action.get("option_id")
     name = action.get("target_task_name") or action.get("target_task_id", "task đang xử lý")
@@ -125,6 +158,7 @@ def save_selected_schedule(
     week_start: str,
     selection: dict | None = None,
     path: str | Path = DEFAULT_HISTORY_PATH,
+    input_snapshot: dict | None = None,
 ) -> dict:
     """Append an accepted schedule; return its saved record.
 
@@ -155,6 +189,8 @@ def save_selected_schedule(
         "context": context_data,
         "result": result_data,
     }
+    if input_snapshot is not None:
+        record["input_snapshot"] = _as_dict(input_snapshot)
     # Freeze caller-owned dictionaries and reject non-JSON values before I/O.
     record = json.loads(json.dumps(record, ensure_ascii=False, allow_nan=False))
     record.update(_schedule_metadata(record["context"], record["result"], record["selection"], start_date))
@@ -168,21 +204,6 @@ def save_selected_schedule(
         record["version"] = max([len(same_week)] + [item.get("version", 0) for item in same_week]) + 1
         record["title"] = f"Lịch {record['date_range']} · Phiên bản {record['version']}"
         history["schedules"].append(record)
-        serialized = json.dumps(history, ensure_ascii=False, indent=2, allow_nan=False)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        temporary = None
-        try:
-            # Replace only after the new full history has been written.
-            with NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
-                                    dir=destination.parent, prefix=destination.name + ".",
-                                    suffix=".tmp", delete=False) as stream:
-                temporary = Path(stream.name)
-                stream.write(serialized + "\n")
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary, destination)
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
+        _write_history_document(destination, history)
 
     return record
