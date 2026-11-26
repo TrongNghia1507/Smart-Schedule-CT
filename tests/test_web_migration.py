@@ -174,6 +174,28 @@ def test_react_csv_template_and_recurring_calendar_colors():
         assert snapshot["fixed_tasks"][0]["after_min"] == 10
 
 
+def test_login_requires_account_to_match_selected_role():
+    with TestClient(app) as client:
+        register(client, "planner")
+        for username, role in (("admin", "user"), ("planner", "admin")):
+            denied = client.post(API + "/auth/login", json={
+                "username": username, "password": PASSWORD, "role": role,
+            })
+            assert denied.status_code == 401
+            assert client.get(API + "/auth/me").json()["user"]["username"] == "planner"
+        planner = client.post(API + "/auth/login", json={
+            "username": "planner", "password": PASSWORD, "role": "user",
+        })
+        assert planner.json()["user"]["role"] == "user"
+        assert client.get(API + "/admin/overview").status_code == 403
+        admin = client.post(API + "/auth/login", json={
+            "username": "admin", "password": PASSWORD, "role": "admin",
+        })
+        assert admin.json()["user"]["role"] == "admin"
+        assert client.get(API + "/admin/overview").status_code == 200
+        assert client.get(API + "/draft").status_code == 403
+
+
 def test_legacy_draft_and_color_import(tmp_path):
     source_dir = tmp_path / "old"
     source = source_dir / "portal.db"

@@ -59,7 +59,7 @@ npm --prefix apps/web run dev
 
 Vite phục vụ `http://localhost:5173/app/`. Nếu dùng Docker, `docker compose up --build web` build và phục vụ giao diện cùng API tại cổng 8501, dùng volume `schedule_data` cho SQLite.
 
-Tài khoản admin có tên `admin`. Đặt biến môi trường `SCHEDULE_ADMIN_PASSWORD` trước lần khởi động đầu tiên để chọn mật khẩu. Khi dùng HTTPS, đặt `SCHEDULE_SECURE_COOKIE=true` và dùng mật khẩu admin đã đổi. Uvicorn phục vụ giao diện build ở `/app/` và chuyển hướng `/` tới đó. Môi trường build và runtime mặc định chỉ cài thư viện cho React và FastAPI.
+Người dùng đăng nhập hoặc đăng ký tại `/app/`. Quản trị viên vào `/app/admin` và dùng tài khoản `admin`. Đặt biến môi trường `SCHEDULE_ADMIN_PASSWORD` trước lần khởi động đầu tiên để chọn mật khẩu. Khi dùng HTTPS, đặt `SCHEDULE_SECURE_COOKIE=true` và dùng mật khẩu admin đã đổi. Uvicorn chuyển hướng `/` tới `/app/`.
 
 Ứng dụng mới dùng SQLite trong `.data/portal.db` khi chạy trực tiếp. Nếu có tài khoản, nháp hoặc lịch sử từ bản cũ, dùng [hướng dẫn chuyển dữ liệu](docs/api-v1.md#chuyển-dữ-liệu-từ-streamlit) trước khi khởi động với cơ sở dữ liệu đích.
 

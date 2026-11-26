@@ -8,7 +8,7 @@ import { Icon, confirmDiscard, ErrorBox, translate } from './ui'
 import './styles.css'
 
 type Theme = 'light' | 'dark'
-type Page = 'input' | 'calendar' | 'history'
+type Page = 'input' | 'calendar' | 'history' | 'admin'
 const base = '/app/'
 const PlannerPage = lazy(() => import('./PlannerPage').then(module => ({ default: module.PlannerPage })))
 const HistoryPage = lazy(() => import('./HistoryPage').then(module => ({ default: module.HistoryPage })))
@@ -22,7 +22,7 @@ function initialPreference<T extends string>(key: string, values: T[], fallback:
 
 function initialPage(): Page {
   const section = location.pathname.slice(base.length).split('/')[0]
-  return section === 'calendar' || section === 'history' ? section : 'input'
+  return section === 'calendar' || section === 'history' || section === 'admin' ? section : 'input'
 }
 
 function App() {
@@ -32,6 +32,8 @@ function App() {
   const [error, setError] = useState<unknown>(null)
   const [authNotice, setAuthNotice] = useState(false)
   const [page, setPage] = useState(initialPage)
+  const adminRoute = page === 'admin'
+  const planner = session?.user.role === 'user' && !adminRoute
   const [draft, setDraft] = useState<Draft | null>(null)
   const [loadVersion, setLoadVersion] = useState(0)
   const t = translate(lang)
@@ -58,12 +60,19 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!session || session.user.role === 'admin') return
+    if (!planner) return
     let active = true
     client.get<Draft>('/draft').then(value => { if (active) setDraft(value) })
       .catch(failure => { if (active) setError(failure) })
     return () => { active = false }
-  }, [client, session, loadVersion, lang])
+  }, [client, planner, loadVersion, lang])
+
+  useEffect(() => {
+    if (session?.user.role === 'admin' && !adminRoute) {
+      history.replaceState(null, '', base + 'admin' + location.search)
+      setPage('admin')
+    }
+  }, [session, adminRoute])
 
   useEffect(() => {
     const pop = () => {
@@ -119,7 +128,6 @@ function App() {
     }
   }
 
-  const planner = session?.user.role === 'user'
   const tabs = [
     { id: 'input', label: t('Nhập dữ liệu', 'Input'), icon: 'list' },
     { id: 'calendar', label: t('Lịch tuần', 'Calendar'), icon: 'calendar' },
@@ -164,6 +172,11 @@ function App() {
             onClick={() => preference('theme', theme === 'light' ? 'dark' : 'light')}>
             <Icon name={theme === 'light' ? 'moon' : 'sun'} />
           </button>
+          {planner && <a className="button quiet" href={base + 'admin' + location.search} onClick={event => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            navigate('admin')
+          }}>{t('Quản trị', 'Admin')}</a>}
           {session && <><span className="account-person">
             <span className="account-avatar" aria-hidden="true">{initials}</span>
             <span className="account-name" title={session.user.full_name}>{session.user.full_name}</span></span>
@@ -174,18 +187,28 @@ function App() {
     {session === null ? <>
       {authNotice && <div className="auth-message notice" role="status">{t('Đã đổi mật khẩu. Hãy đăng nhập lại.',
         'Password changed. Sign in again.')}</div>}
-      <AuthPage t={t} onSession={value => { setAuthNotice(false); setSession(value) }} />
+      <AuthPage key={String(adminRoute)} admin={adminRoute} t={t}
+        onSession={value => { setAuthNotice(false); setSession(value) }} />
     </> : <main className="workspace">
       <ErrorBox error={error} t={t} reload={reload} />
       {session === undefined && error ? <button onClick={() => location.reload()}>{t('Thử lại', 'Retry')}</button> : null}
       <Suspense fallback={<p role="status">{t('Đang tải…', 'Loading…')}</p>}>
-        {session?.user.role === 'admin' && <AdminPage client={client} lang={lang} t={t}
+        {adminRoute && session?.user.role === 'admin' && <AdminPage client={client} lang={lang} t={t}
           onChanged={() => { endSession(); setAuthNotice(true) }} />}
         {planner && draft && page === 'calendar' && <PlannerPage draft={draft} client={client} change={change}
           reload={reload} toInput={() => navigate('input')} lang={lang} t={t} />}
         {planner && draft && page === 'history' && <HistoryPage draft={draft} client={client}
           onRestore={value => { setDraft(value); navigate('input', false) }} reload={reload} lang={lang} t={t} />}
       </Suspense>
+      {adminRoute && session?.user.role === 'user' && <section className="panel narrow">
+        <h1>{t('Khu vực quản trị', 'Administrator area')}</h1>
+        <p>{t('Bạn đang dùng tài khoản lập lịch. Đăng xuất để đăng nhập bằng tài khoản quản trị viên.',
+          'You are signed in as a planner. Sign out to enter with an administrator account.')}</p>
+        <div className="inline">
+          <button onClick={() => navigate('input')}>{t('Về trang người dùng', 'Back to planner')}</button>
+          <button className="primary" onClick={() => void signOut()}>{t('Đăng xuất để vào quản trị', 'Sign out for admin access')}</button>
+        </div>
+      </section>}
       {planner && draft && page === 'input' && <DraftPage draft={draft} client={client} change={change} adopt={setDraft}
         reload={reload} advance={() => navigate('calendar')} lang={lang} t={t} />}
       {(!session || (planner && !draft)) && (error ? session && <button onClick={reload}>{t('Thử lại', 'Retry')}</button> :

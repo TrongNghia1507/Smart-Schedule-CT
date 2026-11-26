@@ -6,6 +6,8 @@ FastAPI cung cấp OpenAPI ở `/docs` và `/openapi.json`. React và API dùng 
 
 `POST /api/v1/auth/login` và `POST /api/v1/auth/register` trả `{user, csrf}` và cookie HTTP-only có hạn 12 giờ. `GET /api/v1/auth/me` khôi phục thông tin phiên. Khi ghi, gửi `X-CSRF-Token` với giá trị `csrf`. `POST /api/v1/auth/logout` thu hồi phiên. API lấy chủ sở hữu và vai trò từ cơ sở dữ liệu.
 
+`POST /api/v1/auth/login` nhận thêm trường tùy chọn `role` (`user` hoặc `admin`). Giao diện gửi vai trò theo lối vào đã chọn. Máy chủ kiểm tra vai trò từ tài khoản trong cơ sở dữ liệu.
+
 ## Tuyến chính
 
 | Tiền tố sau `/api/v1` | Thao tác |

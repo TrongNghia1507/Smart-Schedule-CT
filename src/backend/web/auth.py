@@ -4,6 +4,7 @@ import hashlib
 import secrets
 from dataclasses import asdict, dataclass
 from time import time
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
@@ -21,6 +22,10 @@ SESSION_SECONDS = 12 * 60 * 60
 class Credentials(BaseModel):
     username: str = Field(max_length=30)
     password: str = Field(max_length=256)
+
+
+class Login(Credentials):
+    role: Literal["user", "admin"] | None = None
 
 
 class Registration(Credentials):
@@ -100,10 +105,13 @@ def groups():
 
 
 @router.post("/login")
-def login(data: Credentials, request: Request, response: Response):
+def login(data: Login, request: Request, response: Response):
     # JSON-only body and no credentialed cross-origin access keep login same-origin.
     require_json(request)
-    if data.username.strip().lower() == auth.ADMIN_USERNAME:
+    admin_username = data.username.strip().lower() == auth.ADMIN_USERNAME
+    if data.role == "admin" and not admin_username:
+        raise WebError(401, "LOGIN_FAILED", "Sai tên đăng nhập hoặc mật khẩu.")
+    if data.role != "user" and admin_username:
         user, error = auth.login_admin(data.password, db_path())
     else:
         user, error = auth.login_user(data.username, data.password, db_path())

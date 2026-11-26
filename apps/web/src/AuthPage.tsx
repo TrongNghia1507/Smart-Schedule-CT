@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { anonymous, type Session } from './api'
 import { ErrorBox, Icon, type T } from './ui'
 
-export function AuthPage({ onSession, t }: { onSession: (session: Session) => void; t: T }) {
+export function AuthPage({ admin, onSession, t }: { admin: boolean; onSession: (session: Session) => void; t: T }) {
   const [register, setRegister] = useState(false)
   const [groups, setGroups] = useState<string[]>([])
   const [error, setError] = useState<unknown>(null)
@@ -20,7 +20,7 @@ export function AuthPage({ onSession, t }: { onSession: (session: Session) => vo
     setError(null)
     try {
       onSession(await anonymous.send<Session>(register ? '/auth/register' : '/auth/login',
-        register ? { ...data, consent: values.has('consent') } : data))
+        register ? { ...data, consent: values.has('consent') } : { ...data, role: admin ? 'admin' : 'user' }))
     } catch (failure) {
       setError(failure)
     } finally {
@@ -48,16 +48,20 @@ export function AuthPage({ onSession, t }: { onSession: (session: Session) => vo
       </div>
     </aside>
     <section className="panel auth-form">
-      <div className="tabs" aria-label={t('Tài khoản', 'Account')}>
-        <button type="button" className={!register ? 'selected' : ''} aria-pressed={!register} disabled={busy}
-          onClick={() => { setRegister(false); setError(null) }}>{t('Đăng nhập', 'Sign in')}</button>
-        <button type="button" className={register ? 'selected' : ''} aria-pressed={register} disabled={busy}
-          onClick={() => { setRegister(true); setError(null) }}>{t('Đăng ký', 'Register')}</button>
-      </div>
-      <h2>{register ? t('Tạo tài khoản', 'Create an account') : t('Đăng nhập', 'Sign in')}</h2>
+      <nav className="tabs role-tabs" aria-label={t('Đăng nhập với tư cách', 'Sign in as')}>
+        <a className="button" href={'/app/' + location.search} aria-current={admin ? undefined : 'page'}>
+          {t('Người dùng', 'User')}
+        </a>
+        <a className="button" href={'/app/admin' + location.search} aria-current={admin ? 'page' : undefined}>
+          {t('Quản trị viên', 'Administrator')}
+        </a>
+      </nav>
+      <h2>{admin ? t('Đăng nhập quản trị', 'Administrator sign-in') :
+        register ? t('Tạo tài khoản', 'Create an account') : t('Đăng nhập', 'Sign in')}</h2>
       <form key={String(register)} className="form-stack" onSubmit={submit}>
         {register && <label>{t('Họ và tên', 'Full name')}<input name="full_name" required minLength={2} maxLength={100} autoComplete="name" /></label>}
-        <label>{t('Tên đăng nhập', 'Username')}<input name="username" required maxLength={30} autoComplete="username" /></label>
+        <label>{t('Tên đăng nhập', 'Username')}<input name="username" required maxLength={30} autoComplete="username"
+          defaultValue={admin ? 'admin' : undefined} readOnly={admin} /></label>
         {register && <>
           <label>{t('Email (không bắt buộc)', 'Email (optional)')}<input name="email" type="email" maxLength={254} autoComplete="email" /></label>
           <label>{t('Nhóm người dùng', 'User group')}<select name="user_group" defaultValue="" required>
@@ -80,6 +84,13 @@ export function AuthPage({ onSession, t }: { onSession: (session: Session) => vo
           {busy ? t('Đang xử lý…', 'Working…') : register ? t('Tạo tài khoản', 'Create account') : t('Đăng nhập', 'Sign in')}
         </button>
       </form>
+      {!admin && <div className="auth-switch">
+        <span>{register ? t('Đã có tài khoản?', 'Already have an account?') : t('Chưa có tài khoản?', 'New here?')}</span>
+        <button type="button" className="quiet" disabled={busy}
+          onClick={() => { setRegister(value => !value); setError(null) }}>
+          {register ? t('Quay lại đăng nhập', 'Back to sign in') : t('Đăng ký', 'Register')}
+        </button>
+      </div>}
     </section>
   </main>
 }
