@@ -1,6 +1,5 @@
 """Presentation-only translations. Task names and stored values are never translated."""
 import re
-import streamlit as st
 
 
 EN = {
@@ -125,6 +124,8 @@ PATTERNS = [
 
 
 def language():
+    import streamlit as st
+
     return st.session_state.get('ui_language', 'vi')
 
 

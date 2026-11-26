@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from conflict_resolver.calendar_view import calendar_events, deadline_styles, schedule_blocks
-from conflict_resolver.models import Chunk, ConflictContext, ConflictReport, PlanResult
+from conflict_resolver.models import Chunk, ConflictContext, ConflictReport, FixedTask, Interval, PlanResult, Policy
 from conflict_resolver.planning import PlanningSession
 
 DYNAMIC_KEYS = ("context", "result", "protected_ids", "hint_chunks", "reports")
@@ -32,8 +32,20 @@ def base_of(state: dict) -> dict:
 
 
 def load_planning_session(state: dict) -> PlanningSession:
+    context = state["context"]
+    if context["tasks"]:
+        loaded_context = ConflictContext.model_validate(context)
+    else:
+        # Applying "exclude" to the last remaining task can produce a valid
+        # result with no deadline tasks. The public input model requires one.
+        loaded_context = ConflictContext.model_construct(**{
+            **context,
+            "fixed_tasks": [FixedTask.model_validate(item) for item in context["fixed_tasks"]],
+            "active_windows": [Interval.model_validate(item) for item in context["active_windows"]],
+            "policy": Policy.model_validate(context["policy"]),
+        })
     session = PlanningSession(
-        context=ConflictContext.model_validate(state["context"]),
+        context=loaded_context,
         protected_ids=set(state.get("protected_ids", [])),
         cached_plan=PlanResult.model_validate(state["result"]),  # không giải lại baseline
         hint_chunks=[Chunk.model_validate(c) for c in state.get("hint_chunks", [])],

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from statistics import mean, pstdev
 
@@ -10,8 +11,8 @@ from .db import connect, utc_now
 from .rating_schema import CRITERIA, TRADEOFFS
 
 
-def record_finalized(user_id, key, week_start, complete, used_conflict, path=None) -> None:
-    with connect(path) as conn:
+def record_finalized(user_id, key, week_start, complete, used_conflict, path=None, *, conn=None) -> None:
+    with (nullcontext(conn) if conn is not None else connect(path)) as conn:
         conn.execute(
             "INSERT OR IGNORE INTO finalized_schedules(user_id, schedule_key, week_start, complete, "
             "used_conflict_options, at) VALUES (?,?,?,?,?,?)",
@@ -39,20 +40,18 @@ def save_rating(user_id, key, week_start, answers: dict, metrics: dict, path=Non
         (answers.get("comment_improve") or "").strip()[:600],
     )
     with connect(path) as conn:
-        if conn.execute("SELECT 1 FROM ratings WHERE user_id=? AND schedule_key=?", (user_id, key)).fetchone():
-            conn.execute(
-                "UPDATE ratings SET updated_at=?, overall=?, nps=?, adoption=?, vs_manual=?, conflict_clarity=?, "
-                "criteria_json=?, tradeoffs_json=?, problems_json=?, metrics_json=?, comment_good=?, "
-                "comment_improve=? WHERE user_id=? AND schedule_key=?",
-                (stamp, *values, user_id, key),
-            )
-        else:
-            conn.execute(
-                "INSERT INTO ratings(user_id, schedule_key, week_start, created_at, updated_at, overall, nps, "
-                "adoption, vs_manual, conflict_clarity, criteria_json, tradeoffs_json, problems_json, "
-                "metrics_json, comment_good, comment_improve) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (user_id, key, week_start, stamp, stamp, *values),
-            )
+        conn.execute(
+            """INSERT INTO ratings(user_id, schedule_key, week_start, created_at, updated_at, overall, nps,
+               adoption, vs_manual, conflict_clarity, criteria_json, tradeoffs_json, problems_json,
+               metrics_json, comment_good, comment_improve) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(user_id, schedule_key) DO UPDATE SET
+               updated_at=excluded.updated_at, overall=excluded.overall, nps=excluded.nps,
+               adoption=excluded.adoption, vs_manual=excluded.vs_manual, conflict_clarity=excluded.conflict_clarity,
+               criteria_json=excluded.criteria_json, tradeoffs_json=excluded.tradeoffs_json,
+               problems_json=excluded.problems_json, metrics_json=excluded.metrics_json,
+               comment_good=excluded.comment_good, comment_improve=excluded.comment_improve""",
+            (user_id, key, week_start, stamp, stamp, *values),
+        )
 
 
 def _days_ago(days: int) -> str:

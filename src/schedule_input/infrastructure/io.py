@@ -80,10 +80,10 @@ class SampleDataProvider:
                 data.add(t)
         return data
 
-    def demo(self):
+    def demo(self, now=None):
         from dataclasses import replace
         from datetime import timedelta
-        data=self.load();now=datetime.now()
+        data=self.load();now=now or datetime.now()
         week=now.date()-timedelta(days=now.weekday())+timedelta(days=7)
         shift=week-data.window.week_start
         for t in data.deadline_tasks:

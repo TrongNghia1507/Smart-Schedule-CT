@@ -151,16 +151,15 @@ def _schedule_metadata(context: dict, result: dict, selection: dict, start: date
     }
 
 
-def save_selected_schedule(
+def build_history_record(
     *,
     context,
     result,
     week_start: str,
     selection: dict | None = None,
-    path: str | Path = DEFAULT_HISTORY_PATH,
     input_snapshot: dict | None = None,
 ) -> dict:
-    """Append an accepted schedule; return its saved record.
+    """Freeze an accepted schedule for either JSON or SQLite history storage.
 
     context/result accept dictionaries or the integration's Pydantic models.
     NOT_FOUND is allowed when a selected conflict option leaves other tasks
@@ -194,15 +193,28 @@ def save_selected_schedule(
     # Freeze caller-owned dictionaries and reject non-JSON values before I/O.
     record = json.loads(json.dumps(record, ensure_ascii=False, allow_nan=False))
     record.update(_schedule_metadata(record["context"], record["result"], record["selection"], start_date))
+    return record
+
+
+def number_history_record(record: dict, same_week: list[dict]) -> None:
+    # Older records without a version still count toward the sequence.
+    record["version"] = max([len(same_week)] + [item.get("version") or 0 for item in same_week]) + 1
+    record["title"] = f"Lịch {record['date_range']} · Phiên bản {record['version']}"
+
+
+def save_selected_schedule(
+    *, context, result, week_start: str, selection: dict | None = None,
+    path: str | Path = DEFAULT_HISTORY_PATH, input_snapshot: dict | None = None,
+) -> dict:
+    record = build_history_record(context=context, result=result, week_start=week_start,
+                                  selection=selection, input_snapshot=input_snapshot)
     destination = Path(path)
 
     with _HISTORY_LOCK:
         history = _read_history_document(destination)
 
-        same_week = [item for item in history["schedules"] if item.get("week_start") == week_start]
-        # Older records without a version still count toward the sequence.
-        record["version"] = max([len(same_week)] + [item.get("version", 0) for item in same_week]) + 1
-        record["title"] = f"Lịch {record['date_range']} · Phiên bản {record['version']}"
+        same_week = [item for item in history["schedules"] if item.get("week_start") == record["week_start"]]
+        number_history_record(record, same_week)
         history["schedules"].append(record)
         _write_history_document(destination, history)
 

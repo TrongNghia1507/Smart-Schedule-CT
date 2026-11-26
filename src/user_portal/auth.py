@@ -31,13 +31,17 @@ class User:
         return self.role == "admin"
 
 
-def init_portal(path=None) -> None:
+def init_portal(path=None, *, require_configured_password=False) -> None:
     """Tạo bảng và tài khoản admin mặc định (mật khẩu 123, đổi được bằng biến môi trường)."""
     init_schema(path)
     with connect(path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
         if conn.execute("SELECT 1 FROM users WHERE role='admin'").fetchone():
             return
-        password = os.environ.get("SCHEDULE_ADMIN_PASSWORD") or DEFAULT_ADMIN_PASSWORD
+        configured = os.environ.get("SCHEDULE_ADMIN_PASSWORD", "")
+        if require_configured_password and len(configured) < MIN_PASSWORD_LEN:
+            raise RuntimeError("Đặt SCHEDULE_ADMIN_PASSWORD khi khởi tạo tài khoản admin trên HTTPS.")
+        password = configured or DEFAULT_ADMIN_PASSWORD
         conn.execute(
             "INSERT INTO users(username, full_name, role, password_hash, created_at) "
             "VALUES (?, 'Quản trị viên', 'admin', ?, ?)",
@@ -73,6 +77,7 @@ def register_user(username, full_name, email, user_group, password, confirm, con
     if errors:
         return None, errors
     with connect(path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
         if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
             return None, ["Tên đăng nhập đã tồn tại, hãy chọn tên khác."]
         cursor = conn.execute(
@@ -87,6 +92,7 @@ def _authenticate(username: str, password: str, role: str, path=None):
     """Trả về (User, None) hoặc (None, thông báo lỗi). Khoá tạm sau nhiều lần sai."""
     generic = "Sai tên đăng nhập hoặc mật khẩu."
     with connect(path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM users WHERE username=? AND role=?", (username, role)).fetchone()
         if row is None:
             verify_password(password, DUMMY_HASH)

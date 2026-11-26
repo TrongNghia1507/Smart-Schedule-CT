@@ -10,23 +10,34 @@ class TaskRepository:
     def save(self,data,now_override):raise NotImplementedError
 class InMemoryRepository(TaskRepository):
     def save(self,data,now_override):self.data=data
+
+def draft_payload(data):
+    from ..application.mapper import hh
+    return {'schema_version':2,'settings':{'week_start':data.window.week_start.isoformat(),'sleep':{'start':hh(data.window.sleep.start),'end':hh(data.window.sleep.end)}},'fixed_tasks':[TaskFactory.to_dict(t) for t in data.fixed_tasks],'deadline_tasks':[TaskFactory.to_dict(t) for t in data.deadline_tasks]}
+
 class JsonFileRepository(TaskRepository):
     def __init__(self,path):self.path=Path(path);self.blocked=False
     def save(self,data,now_override):
         if self.blocked:raise ValueError('File không tương thích đang được bảo vệ; chọn nơi lưu khác.')
-        from ..application.mapper import hh
-        payload={'schema_version':2,'saved_at':datetime.now().isoformat(timespec='seconds'),'settings':{'week_start':data.window.week_start.isoformat(),'sleep':{'start':hh(data.window.sleep.start),'end':hh(data.window.sleep.end)}},'fixed_tasks':[TaskFactory.to_dict(t) for t in data.fixed_tasks],'deadline_tasks':[TaskFactory.to_dict(t) for t in data.deadline_tasks]}
+        payload=draft_payload(data)
+        payload['saved_at']=datetime.now().isoformat(timespec='seconds')
         self.path.parent.mkdir(parents=True,exist_ok=True)
         tmp=self.path.with_suffix('.tmp')
         with tmp.open('w',encoding='utf-8') as f:json.dump(payload,f,ensure_ascii=False,indent=2);f.flush();os.fsync(f.fileno())
         os.replace(tmp,self.path)
-    def load(self,default):
+    def load(self,default,*,preserve_source=False):
         notes=[]
         if not self.path.exists():return default,None,notes
         try:payload=json.loads(self.path.read_text(encoding='utf-8-sig'))
         except (ValueError,UnicodeError):
+            if preserve_source:
+                self.blocked=True;return default,None,['File JSON hỏng: '+self.path.name]
             target=self.path.with_name(f'schedule_input_draft.corrupt.{datetime.now():%Y%m%d%H%M%S%f}.json');self.path.rename(target)
             return default,None,['File JSON hỏng đã được giữ lại với tên '+target.name]
+        return self.load_payload(payload,default,preserve_source=preserve_source)
+
+    def load_payload(self,payload,default,*,preserve_source=True):
+        notes=[]
         if not isinstance(payload,dict) or payload.get('schema_version') not in (1,2):
             self.blocked=True;return default,None,['Phiên bản file không được hỗ trợ. File gốc được bảo vệ, chưa cho phép ghi đè.']
         try:
@@ -34,8 +45,8 @@ class JsonFileRepository(TaskRepository):
             if payload['schema_version']==1:
                 import shutil
                 backup=self.path.with_name(self.path.stem+'.v1.bak.json')
-                if not backup.exists():shutil.copy2(self.path,backup)
-                notes.append('Đã đọc dữ liệu cũ: importance 1–3 → 1, 4–7 → 2, 8–10 → 3. Đã giữ bản sao v1; giờ hiện tại và giờ ngủ trong Thiết lập chung được áp dụng.')
+                if not preserve_source and not backup.exists():shutil.copy2(self.path,backup)
+                notes.append('Đã đọc dữ liệu cũ: importance 1–3 → 1, 4–7 → 2, 8–10 → 3. Giữ file gốc v1; giờ hiện tại và giờ ngủ trong Thiết lập chung được áp dụng.')
             week=DateTimeParser.day(s['week_start'])
             if week.weekday()!=0:raise ValueError('Tuần phải bắt đầu Thứ Hai.')
             sleep=SleepWindow(DateTimeParser.time(s['sleep']['start']),DateTimeParser.time(s['sleep']['end'],True));TimeRange(sleep.start,sleep.end)

@@ -1,4 +1,6 @@
-# Backend (`src/backend/`) — cách dùng
+# Dịch vụ backend MySQL và TiDB
+
+Tài liệu này mô tả lớp dịch vụ MySQL và TiDB. Điểm chạy hiện tại của React là `backend.web.app:app`, dùng API và SQLite theo [hướng dẫn web](api-v1.md).
 
 Backend là các hàm Python thuần, không phụ thuộc Streamlit. UI chỉ cần truyền `user_id` (lấy lúc đăng nhập) và `week_start` (ngày Thứ Hai, kiểu `date`).
 
@@ -20,10 +22,9 @@ DB_NAME=smart_schedule_ct
 DB_SSL=true
 ```
 
-## Chạy ứng dụng 
-```
-.\.venv\Scripts\python.exe -m streamlit run apps/streamlit/app.py
-```
+## Chạy ứng dụng
+
+Xem [README](../README.md) để build React và chạy FastAPI.
 ## Các service
 
 | Module | Hàm chính | Bảng |
