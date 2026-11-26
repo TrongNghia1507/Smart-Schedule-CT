@@ -504,6 +504,11 @@ def solve(
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = cfg.time_limit
+    # Gói hosting free chỉ có ít CPU: giới hạn số luồng qua biến môi trường CPSAT_WORKERS.
+    import os as _os
+    _workers = int(_os.environ.get("CPSAT_WORKERS", "0") or 0)
+    if _workers > 0:
+        solver.parameters.num_workers = _workers
 
     if hint:  # MỚI
         solver.parameters.repair_hint = True
