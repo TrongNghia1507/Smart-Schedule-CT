@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { EventApi, EventDropArg } from '@fullcalendar/core'
 import { API, type Client, type Draft, type Lang, type Option, type Plan, type Preview } from './api'
-import { Calendar } from './Calendar'
-import { weekLabel } from './dates'
+import { blockType, Calendar } from './Calendar'
+import { currentMonday, weekLabel } from './dates'
 import { TaskEditor, type ChangeDraft, type Edit } from './DraftPage'
 import { ErrorBox, Icon, Issues, Modal, type T } from './ui'
 import { RatingForm } from './RatingForm'
@@ -41,6 +41,10 @@ function ConflictOption({ option, week, lang, t, busy, apply }: {
           required value={duration || ''} onChange={event => setDuration(+event.target.value)} /></label>}
       <button className="primary" disabled={busy}>{t('Áp dụng', 'Apply')}</button>
     </form>}
+    {option.available && option.id === 2 && duration !== option.maximum && <p className="muted">
+      {t(`Lịch xem thử dùng mức đã kiểm chứng ${option.maximum} phút. Hệ thống sẽ kiểm tra mức bạn nhập khi áp dụng.`,
+        `The preview uses the verified duration of ${option.maximum} minutes. The duration you enter is checked when you apply.`)}
+    </p>}
   </article>
 }
 
@@ -135,7 +139,7 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
       setPlan(await sendOperation<Plan>(`/plans/${activePlan.id}/apply?lang=${lang}`, {
         expected_version: activePlan.version, task_id: targetId, option_id: id, duration,
       }))
-      setStatus(t('Đã áp dụng và lưu vào lịch sử.', 'Option applied and saved to history.'))
+      setStatus(t('Đã áp dụng phương án. Bấm Lưu vào lịch sử để giữ phiên bản.', 'Option applied. Use Save to history to keep this version.'))
     })
   }
 
@@ -144,7 +148,7 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
     void perform(async () => {
       try {
         await change({ action: 'move', task_id: event.event.extendedProps.task_id,
-          old_start: event.oldEvent.startStr.slice(0, 19), new_start: event.event.startStr.slice(0, 19) })
+          old_start: event.oldEvent.startStr.slice(0, 19), new_start: event.event.startStr.slice(0, 19), current_week: currentWeek })
       } catch (failure) { event.revert(); throw failure }
     })
   }
@@ -152,7 +156,7 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
   function showEvent(event: EventApi) {
     if (busy) return
     const task = draft.fixed_tasks.find(task => task.id === event.extendedProps.task_id)
-    if (task && !visiblePlan && !currentWeek && event.extendedProps.kind === 'fixed') {
+    if (task && !visiblePlan && event.extendedProps.kind === 'fixed') {
       setEdit({ fixed: true, task })
     } else if (event.title && event.extendedProps.kind !== 'sleep') {
       setSelected(event)
@@ -179,6 +183,10 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
   }
 
   const eventTask = selected && [...draft.fixed_tasks, ...draft.deadline_tasks].find(task => task.id === selected.extendedProps.task_id)
+  const deadline = selected && visiblePlan?.deadline_details[selected.extendedProps.task_id]
+  const duration = selected?.start && selected.end ? (selected.end.getTime() - selected.start.getTime()) / 60000 : null
+  const shownEvents = visiblePlan?.events ?? shownPreview?.events ?? []
+  const moveEvent = visiblePlan || busy || !shownPreview ? undefined : move
   return <>
     <div className="page-heading calendar-heading"><div><h1>{t('Lịch tuần', 'Weekly calendar')}</h1>
       <p className="date-label"><Icon name="calendar" />{weekLabel(week, lang)}</p></div>
@@ -199,18 +207,31 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
             <button onClick={() => setExpanded(true)}>{t('Phóng to', 'Expand')}</button>
           </div>
         </div>
-        {visiblePlan || shownPreview ? <Calendar events={visiblePlan?.events ?? shownPreview?.events ?? []} week={week} lang={lang} t={t} mode={calendarMode}
-          onEvent={showEvent} onDrop={visiblePlan || currentWeek || busy ? undefined : move} /> :
+        {currentWeek && <p className="muted">{t('Đang xem tuần hiện tại. Việc chuyển chế độ xem giữ nguyên tuần lập lịch.',
+          'Viewing the current week. Changing the view leaves the planning week in place.')}</p>}
+        {!currentWeek && week !== currentMonday() && <p className="muted">{t('Vạch giờ hiện tại chỉ hiện trong tuần có ngày hôm nay.',
+          'The current-time marker appears in the week that contains today.')}</p>}
+        {visiblePlan || shownPreview ? <Calendar events={shownEvents} week={week} lang={lang} t={t} mode={calendarMode}
+          onEvent={showEvent} onDrop={moveEvent} /> :
           <p role="status">{t('Đang tải lịch…', 'Loading calendar…')}</p>}
         <div className="calendar-legend">
           <span><i className={visiblePlan ? 'swatch planned-fixed' : 'swatch fixed'} />{t('Việc cố định', 'Fixed tasks')}</span>
           {visiblePlan && <span><i className="swatch deadline" />{t('Việc có hạn chót', 'Deadline tasks')}</span>}
-          <span><i className="swatch sleep" />{t('Giờ ngủ', 'Sleep')}</span>
+          <span><i className="swatch sleep" />{t('Giờ ngủ', 'Sleep')} {!visiblePlan && <>{draft.settings.sleep.start}–{draft.settings.sleep.end}</>}</span>
+          <span><i className="swatch current-time" />{t('Giờ hiện tại', 'Current time')}</span>
         </div>
-        {!visiblePlan && !currentWeek && <p className="muted">{t('Kéo việc cố định theo bước 10 phút. Với việc lặp lại, thay đổi áp dụng cho cả chuỗi.',
-          'Drag fixed tasks in 10-minute steps. A move changes the entire recurring series.')}</p>}
+        <p className="muted">{visiblePlan ? t('Bấm vào khối để xem chi tiết. Màu việc có hạn chót đậm dần theo mức quan trọng 1–3.',
+          'Select a block for details. Deadline task color intensifies with importance from 1 to 3.') :
+          t('Bấm để sửa việc cố định hoặc kéo theo bước 10 phút. Nếu việc lặp lại, thay đổi áp dụng cho cả chuỗi.',
+            'Select a fixed task to edit or drag it in 10-minute steps. A move changes the entire recurring series.')}</p>
       </section>
       <aside className="planner-aside">
+        <section className="panel"><h2>{t('Tóm tắt lịch', 'Calendar summary')}</h2>
+          {visiblePlan ? <p>{shownEvents.filter(event => event.extendedProps?.kind === 'deadline').length} {t('khối deadline đã xếp', 'scheduled deadline blocks')}</p> :
+            <><p>{draft.fixed_tasks.length} {t('việc cố định', 'fixed tasks')}</p>
+              {shownPreview && <p className="muted">{shownEvents.filter(event => event.extendedProps?.kind === 'fixed').length} {t('khối', 'blocks')}
+                {' · '}{shownEvents.filter(event => event.display === 'background').length} {t('dải ngủ mặc định', 'default sleep bands')}</p>}</>}
+        </section>
         <section className="panel">
           <div className="panel-heading"><span className="panel-icon lavender"><Icon name="clock" /></span>
             <h2>{t('Xếp lịch', 'Schedule tasks')}</h2></div>
@@ -261,16 +282,22 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
       {report.options.map(option => <ConflictOption key={`${activePlan.id}:${activePlan.version}:${targetId}:${option.id}`}
         option={option} week={activePlan.week_start} lang={lang} t={t} busy={busy} apply={apply} />)}
     </section>}
-    {expanded && <Modal title={weekLabel(week, lang)} onClose={() => setExpanded(false)} t={t} wide>
-      <Calendar events={visiblePlan?.events ?? shownPreview?.events ?? []} week={week} lang={lang} t={t} mode={calendarMode} expanded />
+    {expanded && !edit && !selected && <Modal title={weekLabel(week, lang)} onClose={() => setExpanded(false)} busy={busy} t={t} wide>
+      <ErrorBox error={error} t={t} reload={refresh} />
+      <Calendar events={shownEvents} week={week} lang={lang} t={t} mode={calendarMode} expanded onEvent={showEvent} onDrop={moveEvent} />
     </Modal>}
     {edit && <TaskEditor edit={edit} draft={draft} change={change} close={() => setEdit(null)} reload={refresh} t={t} />}
     {selected && <Modal title={selected.title} onClose={() => setSelected(null)} t={t}>
       <dl className="details-list">
+        <dt>{t('Loại', 'Type')}</dt><dd>{blockType(selected.extendedProps.kind === 'reserve' && !selected.extendedProps.task_id ? 'rest' : selected.extendedProps.kind, t)}</dd>
         <dt>{t('Giờ', 'Time')}</dt><dd>{selected.startStr.slice(0, 16).replace('T', ' ')} → {selected.endStr.slice(0, 16).replace('T', ' ')}</dd>
-        {eventTask?.deadline && <><dt>{t('Hạn chót', 'Deadline')}</dt><dd>{eventTask.deadline.replace('T', ' ')}</dd>
-          <dt>{t('Mức quan trọng', 'Importance')}</dt><dd>{eventTask.importance}/3</dd></>}
-        {eventTask?.start && <><dt>{t('Chuẩn bị / đi về', 'Prep / travel')}</dt><dd>{eventTask.prep_min}′ / {eventTask.after_min}′</dd></>}
+        {duration != null && <><dt>{t('Thời lượng khối', 'Block duration')}</dt><dd>{duration}′</dd></>}
+        {deadline && <><dt>{t('Hạn chót', 'Deadline')}</dt><dd>{deadline.deadline.replace('T', ' ')}</dd>
+          <dt>{t('Mức quan trọng', 'Importance')}</dt><dd>{deadline.importance}/3</dd>
+          <dt>{t('Bắt buộc', 'Required')}</dt><dd>{deadline.mandatory ? t('Có', 'Yes') : t('Không', 'No')}</dd>
+          <dt>{t('Tổng thời lượng', 'Total duration')}</dt><dd>{deadline.remaining_min}′</dd></>}
+        {eventTask?.start && <><dt>{t('Thời gian chuẩn bị', 'Preparation time')}</dt><dd>{eventTask.prep_min}′</dd>
+          <dt>{t('Thời gian dự trù', 'Travel time')}</dt><dd>{eventTask.after_min}′</dd></>}
       </dl>
     </Modal>}
     {ratingKey && <Modal title={t('Đánh giá lịch vừa chốt', 'Rate this schedule')} onClose={() => setRatingKey(null)} t={t}>

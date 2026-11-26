@@ -1,5 +1,16 @@
 import type { Lang } from './api'
 
+const vietnamDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short' })
+
+export function vietnamDay(now: Date) {
+  return vietnamDate.format(now)
+}
+
+export function currentMonday() {
+  const today = vietnamDay(new Date())
+  return dateInWeek(today, -((new Date(today).getUTCDay() + 6) % 7))
+}
+
 export function dateInWeek(week: string, day: number) {
   const start = Date.parse(`${week}T00:00:00Z`)
   return new Date(start + day * 86400000).toISOString().slice(0, 10)

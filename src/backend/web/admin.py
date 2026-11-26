@@ -58,8 +58,10 @@ def overview(_current: Session = Depends(admin)):
 @router.get("/ratings.csv")
 def ratings_export(
     score: Annotated[list[int] | None, Query()] = None, group: Annotated[list[str] | None, Query()] = None,
-    _current: Session = Depends(admin),
+    empty: bool = False, _current: Session = Depends(admin),
 ):
+    if empty:
+        return csv_response([], "ratings.csv")
     data = repository.overview(db_path())
     rows = []
     for rating in data["ratings"]:

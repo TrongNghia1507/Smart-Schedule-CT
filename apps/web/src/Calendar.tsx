@@ -18,6 +18,13 @@ const vnClock = new Intl.DateTimeFormat('sv-SE', {
   hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
 })
 
+export function blockType(kind: string, t: T) {
+  if (kind === 'fixed') return t('Việc cố định', 'Fixed task')
+  if (kind === 'deadline') return t('Việc có hạn chót', 'Deadline task')
+  if (kind === 'prep' || kind === 'after' || kind === 'reserve') return t('Chuẩn bị / di chuyển', 'Preparation / travel')
+  return kind === 'sleep' ? t('Giờ ngủ', 'Sleep') : t('Nghỉ ngơi', 'Rest')
+}
+
 function clockMinutes(value: string) {
   const time = value.match(/(?:T| )(\d{2}):(\d{2})/)
   return time ? Number(time[1]) * 60 + Number(time[2]) : 360
@@ -83,7 +90,8 @@ function CalendarView({ events, week, lang, t, compact, mode, expanded, onDrop, 
       firstDay={1} headerToolbar={false} allDaySlot={false} scrollTime={initialScroll(visibleEvents, mode === 'now' && date !== today && view === 'day' ? undefined : mode)}
       scrollTimeReset={false} height={expanded ? 'calc(100dvh - 12rem)' : compact ? 380 : 650} snapDuration="00:10:00"
       eventLongPressDelay={250} eventMinHeight={8}
-      events={events} editable={Boolean(onDrop)} eventDurationEditable={false}
+      events={onDrop ? events : events.map(event => event.editable ? { ...event, editable: false } : event)}
+      editable={Boolean(onDrop)} eventDurationEditable={false}
       eventDrop={event => { if (onDrop) onDrop(event); else event.revert() }}
       eventClick={event => onEvent?.(event.event)} eventInteractive={Boolean(onEvent)}
       displayEventEnd dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}

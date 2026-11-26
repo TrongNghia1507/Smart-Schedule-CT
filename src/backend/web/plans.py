@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -121,11 +121,17 @@ def plan_view(plan_id, revision, state, lang, finalized=False):
             })
         reports[task_id] = {"options": options, "ai_status": report.ai_status}
     key = schedule_key(state["context"], state["result"], state["week_start"])
+    origin = datetime.combine(week, time.min)
     return {
         "id": plan_id, "draft_revision": revision, "version": context.schedule_version, "week_start": week,
         "status": result.status, "optimal": result.proven_optimal, "earlier": context.policy.max_earlier_minutes,
         "later": context.policy.max_later_minutes, "schedule_key": key if finalized else None,
         "events": localized_events(week, entries, context.active_windows, state, lang),
+        "deadline_details": {
+            task.id: {"deadline": (origin + timedelta(minutes=task.deadline)).isoformat(timespec="minutes"),
+                      "importance": task.importance, "mandatory": task.mandatory, "remaining_min": task.remaining_min}
+            for task in context.tasks
+        },
         "unscheduled": [{"id": key, "name": names.get(key, key), "minutes": minutes}
                         for key, minutes in result.unscheduled.items()],
         "reports": reports, "applied": state["applied"],
@@ -258,7 +264,6 @@ def apply(plan_id: UUID, data: ApplyRequest, lang: Language = "vi", current: Ses
         "schedule_version": engine.context.schedule_version,
     }
     updated = dump_state(engine, result, {**base_of(state), "applied": [*state["applied"], applied]})
-    history = history_record(updated)
     with database(write=True) as conn:
         prior = cached_operation(conn, user_id, data.operation_id, "apply", request)
         if prior:
@@ -268,7 +273,6 @@ def apply(plan_id: UUID, data: ApplyRequest, lang: Language = "vi", current: Ses
             require_current(conn, user_id, current_row)
             verify_version(current_state, data.expected_version)
             conn.execute("UPDATE web_plans SET state=? WHERE id=?", (encode(updated), plan_id))
-            insert_history(conn, user_id, history)
             save_operation(conn, user_id, data.operation_id, "apply", request, updated)
     return present(user_id, plan_id, row["draft_revision"], updated, lang)
 

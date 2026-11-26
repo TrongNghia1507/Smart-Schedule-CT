@@ -15,7 +15,7 @@ from scheduling_algorithm.core_algorithm.history import load_schedule_history
 from user_portal.db import connect
 
 from .draft import monday, window
-from .history import history_events
+from .history import history_view
 from .storage import db_path, encode, initialize
 
 COLOR = re.compile(r"#[a-fA-F0-9]{6}")
@@ -71,7 +71,7 @@ def legacy_history(folder, problems):
             date.fromisoformat(record["week_start"])
             if record.get("version") is not None and type(record["version"]) is not int:
                 raise ValueError("Phiên bản lịch không hợp lệ")
-            history_events(record, "vi")
+            history_view(record, "vi")
             encode(record)
         except (ValueError, TypeError, AttributeError, KeyError) as exc:
             problems.append(f"{folder.name}: bỏ qua lịch dòng {index}: {exc}")

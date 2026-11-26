@@ -21,6 +21,7 @@ export type Plan = {
   id: string; draft_revision: number; week_start: string; version: number; optimal: boolean
   earlier: number; later: number; schedule_key: string | null; status: string; events: EventInput[]
   unscheduled: (Unplaced & { id: string })[]
+  deadline_details: Record<string, { deadline: string; importance: number; mandatory: boolean; remaining_min: number }>
   reports: Record<string, { ai_status: string; options: Option[] }>
   applied: { option_id: number; target_task_name: string; duration_min: number | null }[]
 }
@@ -28,7 +29,11 @@ export type HistorySummary = {
   id: string; week_start: string; version: number | null; title: string | null
   description: string | null; saved_at: string; complete: boolean
 }
-export type HistoryDetail = { record: HistorySummary & { result: { unscheduled: Record<string, number> } }; events: EventInput[] }
+export type HistoryDetail = {
+  record: HistorySummary & { context: { tasks: { id: string; name: string }[] }; result: { unscheduled?: Record<string, number> } }
+  events: EventInput[]
+  entries: { name: string; kind: string; start: string; end: string }[]
+}
 
 export const API = '/api/v1'
 

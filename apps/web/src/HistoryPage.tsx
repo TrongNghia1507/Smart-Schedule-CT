@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { API, type Client, type Draft, type HistoryDetail, type HistorySummary, type Lang } from './api'
-import { Calendar } from './Calendar'
+import { blockType, Calendar } from './Calendar'
 import { weekLabel } from './dates'
 import { ErrorBox, Modal, type T } from './ui'
 
@@ -16,6 +16,8 @@ export function HistoryPage({ client, draft, onRestore, reload, lang, t }: {
   const [busy, setBusy] = useState(false)
   const recordId = selected || records?.find(record => !week || record.week_start === week)?.id || ''
   const shown = detail?.record.id === recordId ? detail : null
+  const unscheduled = Object.entries(shown?.record.result.unscheduled ?? {})
+  const names = new Map(shown?.record.context.tasks.map(task => [task.id, task.name]))
   const recordUrl = `/history/${encodeURIComponent(recordId)}`
 
   useEffect(() => {
@@ -68,13 +70,14 @@ export function HistoryPage({ client, draft, onRestore, reload, lang, t }: {
           <label>{t('Phiên bản', 'Version')}<select value={recordId} onChange={event => setSelected(event.target.value)}>
             {!recordId && <option value="">{t('Chưa có phiên bản', 'No versions')}</option>}
             {records.filter(record => !week || record.week_start === week).map(record => <option value={record.id} key={record.id}>
-              {weekLabel(record.week_start, lang)} · {t('Phiên bản', 'Version')} {record.version ?? '—'} · {formattedTime(record.saved_at)}
+              {(lang === 'vi' && record.title) || `${weekLabel(record.week_start, lang)} · ${t('Phiên bản', 'Version')} ${record.version ?? '—'}`}
+              {' · '}{formattedTime(record.saved_at)}
             </option>)}
           </select></label>
         </div>}
     </section>
     {shown && <section className="panel calendar-panel">
-      <div className="section-head"><div><h2>{weekLabel(shown.record.week_start, lang)}</h2>
+      <div className="section-head"><div><h2>{(lang === 'vi' && shown.record.title) || weekLabel(shown.record.week_start, lang)}</h2>
         <p className="muted">{t('Đã lưu', 'Saved')} · {formattedTime(shown.record.saved_at)}</p></div>
         <div className="inline">
           <a className="button" href={API + recordUrl + '/export'}>{t('Tải JSON', 'Download JSON')}</a>
@@ -82,14 +85,18 @@ export function HistoryPage({ client, draft, onRestore, reload, lang, t }: {
           <button className="danger" onClick={() => setConfirm('delete')}>{t('Xóa phiên bản', 'Delete version')}</button>
         </div>
       </div>
-      <p className="muted">{shown.record.complete ? t('Đã xếp đủ việc.', 'All tasks scheduled.') :
-        t('Vẫn còn việc chưa xếp.', 'Some tasks remain unscheduled.')}</p>
+      {lang === 'vi' && shown.record.description && <p>{shown.record.description}</p>}
+      {unscheduled.length > 0 ? <div className="notice"><strong>{t('Việc chưa xếp trong phiên bản này', 'Tasks left unscheduled in this version')}</strong>
+        <ul className="simple-list">{unscheduled.map(([id, minutes]) => <li key={id}>{names.get(id) ?? id} ({minutes}′)</li>)}</ul>
+      </div> : <p className="muted">{shown.record.complete ? t('Đã xếp đủ việc.', 'All tasks scheduled.') :
+        t('Vẫn còn việc chưa xếp.', 'Some tasks remain unscheduled.')}</p>}
       <Calendar events={shown.events} week={shown.record.week_start} lang={lang} t={t} />
       <details><summary>{t('Bảng chi tiết theo thời gian', 'Schedule details by time')}</summary>
-        <div className="table-wrap"><table><thead><tr><th>{t('Công việc', 'Task')}</th><th>{t('Bắt đầu', 'Start')}</th><th>{t('Kết thúc', 'End')}</th></tr></thead>
-          <tbody>{shown.events.filter(event => event.display !== 'background').map(event => <tr key={String(event.id)}>
-            <th scope="row">{event.title}</th><td>{String(event.start).slice(0, 16).replace('T', ' ')}</td>
-            <td>{String(event.end).slice(0, 16).replace('T', ' ')}</td></tr>)}</tbody>
+        <div className="table-wrap"><table><thead><tr><th>{t('Công việc', 'Task')}</th><th>{t('Loại', 'Type')}</th>
+          <th>{t('Bắt đầu', 'Start')}</th><th>{t('Kết thúc', 'End')}</th></tr></thead>
+          <tbody>{shown.entries.map((entry, index) => <tr key={index}>
+            <th scope="row">{entry.name}</th><td>{blockType(entry.kind, t)}</td>
+            <td>{entry.start.replace('T', ' ')}</td><td>{entry.end.replace('T', ' ')}</td></tr>)}</tbody>
         </table></div>
       </details>
     </section>}

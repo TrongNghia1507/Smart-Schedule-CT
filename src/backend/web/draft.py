@@ -155,6 +155,7 @@ class MoveChange(ChangeBase):
     task_id: str
     old_start: str
     new_start: str
+    current_week: bool = False
 
 
 class ReplaceChange(ChangeBase):
@@ -205,7 +206,7 @@ def change(command: Change, current: Session = Depends(planner)):
             task = service.data._tasks.get(command.task_id)
             if not isinstance(task, FixedTask):
                 raise not_found()
-            displayed = PreviewService().build(service.data).events
+            displayed = PreviewService().build(preview_input(service.data, now_vn_naive(), command.current_week)).events
             if not any(event.task_id == task.id and event.start == datetime.fromisoformat(command.old_start)
                        for event in displayed):
                 raise stale()
@@ -235,14 +236,19 @@ def change(command: Change, current: Session = Depends(planner)):
         return describe(draft)
 
 
+def preview_input(source: ScheduleInput, today: datetime, current_week: bool):
+    data = deepcopy(source)
+    data.window = replace(data.window, week_start=monday(today.date()) if current_week else data.window.week_start,
+                          now=today)
+    return data
+
+
 @router.get("/preview")
 def preview(current_week: bool = False, current: Session = Depends(planner)):
     with database() as conn:
         draft = load_draft(conn, current.user.id)
-    data = deepcopy(draft.service.data)
     today = now_vn_naive()
-    data.window = replace(data.window, week_start=monday(today.date()) if current_week else data.window.week_start,
-                          now=today)
+    data = preview_input(draft.service.data, today, current_week)
     model = PreviewService().build(data)
     issues = draft.service.review()
     overlaps = {issue.task_id for issue in issues.issues if issue.code == "F04"}
@@ -252,7 +258,7 @@ def preview(current_week: bool = False, current: Session = Depends(planner)):
         start, end = event.start.isoformat(), event.end.isoformat()
         events.append({
             "id": f"{event.task_id}@{start}#{event.segment_index}", "title": event.title,
-            "start": start, "end": end, "editable": not current_week,
+            "start": start, "end": end, "editable": True,
             "backgroundColor": color, "borderColor": "#e4a83a" if event.task_id in overlaps else color,
             "textColor": contrasting_text(color),
             "extendedProps": {"task_id": event.task_id, "kind": "fixed"},

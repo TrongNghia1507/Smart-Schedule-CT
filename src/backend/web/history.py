@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, Response
 
@@ -26,7 +26,7 @@ def owned_record(conn, user_id, record_id):
     return json.loads(row["record"])
 
 
-def history_events(record, lang):
+def history_view(record, lang):
     context, result = record["context"], record["result"]
     names = {task["id"]: task["name"] for task in context["tasks"]}
     entries = [
@@ -42,7 +42,18 @@ def history_events(record, lang):
     entries.sort(key=lambda entry: (entry.start, entry.end, entry.ref_id))
     windows = [Interval.model_validate(value) for value in context.get("active_windows", [])]
     order = [{"importance": 2, **task} for task in context["tasks"]]
-    return localized_events(date.fromisoformat(record["week_start"]), entries, windows, {"deadline_order": order}, lang)
+    week = date.fromisoformat(record["week_start"])
+    origin = datetime.combine(week, time.min)
+    return {
+        "record": record,
+        "events": localized_events(week, entries, windows, {"deadline_order": order}, lang),
+        "entries": [
+            {"name": entry.name, "kind": "deadline" if entry.kind == "TASK" else "reserve" if entry.ancillary else "fixed",
+             "start": (origin + timedelta(minutes=entry.start)).isoformat(timespec="minutes"),
+             "end": (origin + timedelta(minutes=entry.end)).isoformat(timespec="minutes")}
+            for entry in entries
+        ],
+    }
 
 
 @router.get("")
@@ -59,7 +70,7 @@ def list_records(week_start: date | None = None, current: Session = Depends(plan
 def detail(record_id: str, lang: Language = "vi", current: Session = Depends(planner)):
     with database() as conn:
         record = owned_record(conn, current.user.id, record_id)
-    return {"record": record, "events": history_events(record, lang)}
+    return history_view(record, lang)
 
 
 @router.get("/{record_id}/export")

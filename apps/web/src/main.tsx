@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { anonymous, ApiError, createClient, type Draft, type Lang, type Session } from './api'
 import { AuthPage } from './AuthPage'
 import { DraftPage, type ChangeDraft } from './DraftPage'
-import { weekLabel } from './dates'
+import { currentMonday, weekLabel } from './dates'
 import { Icon, confirmDiscard, ErrorBox, translate } from './ui'
 import './styles.css'
 
@@ -35,6 +35,8 @@ function App() {
   const adminRoute = page === 'admin'
   const planner = session?.user.role === 'user' && !adminRoute
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [keptWeeks, setKeptWeeks] = useState<string[]>([])
+  const [switchingWeek, setSwitchingWeek] = useState(false)
   const [loadVersion, setLoadVersion] = useState(0)
   const t = translate(lang)
 
@@ -117,6 +119,23 @@ function App() {
     return next
   }
 
+  const thisWeek = currentMonday()
+  const weekChoice = `${session?.user.id ?? ''}:${draft?.settings.week_start ?? ''}`
+  const askAboutWeek = planner && draft && draft.settings.week_start < thisWeek && !keptWeeks.includes(weekChoice)
+
+  async function switchWeek() {
+    if (!draft || !confirmDiscard(document, t)) return
+    setSwitchingWeek(true)
+    setError(null)
+    try {
+      await change({ action: 'settings', week_start: thisWeek, sleep_start: draft.settings.sleep.start, sleep_end: draft.settings.sleep.end })
+    } catch (failure) {
+      setError(failure)
+    } finally {
+      setSwitchingWeek(false)
+    }
+  }
+
   async function signOut() {
     if (!confirmDiscard(document, t)) return
     try {
@@ -191,6 +210,13 @@ function App() {
         onSession={value => { setAuthNotice(false); setSession(value) }} />
     </> : <main className="workspace">
       <ErrorBox error={error} t={t} reload={reload} />
+      {askAboutWeek && <section className="notice" aria-label={t('Tuần của bản nháp', 'Draft week')}>
+        <p>{t('Bản nháp đang dùng tuần cũ', 'Your draft is set to an earlier week')} · {weekLabel(draft.settings.week_start, lang)}</p>
+        <div className="inline">
+          <button disabled={switchingWeek} onClick={() => setKeptWeeks(weeks => [...weeks, weekChoice])}>{t('Giữ tuần cũ', 'Keep draft week')}</button>
+          <button disabled={switchingWeek} onClick={() => void switchWeek()}>{t('Chuyển sang tuần hiện tại', 'Switch to current week')}</button>
+        </div>
+      </section>}
       {session === undefined && error ? <button onClick={() => location.reload()}>{t('Thử lại', 'Retry')}</button> : null}
       <Suspense fallback={<p role="status">{t('Đang tải…', 'Loading…')}</p>}>
         {adminRoute && session?.user.role === 'admin' && <AdminPage client={client} lang={lang} t={t}

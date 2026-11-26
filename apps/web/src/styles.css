@@ -146,6 +146,14 @@ dialog .task-editor { background: var(--surface); padding: 0; }
 .issues .warning { color: var(--warning); }
 .issues .info { color: var(--muted); }
 .table-wrap { max-width: 100%; overflow-x: auto; }
+.editable-table th, .editable-table td { padding: .45rem .55rem; }
+.editable-table th[scope="row"] { min-width: 11.5rem; }
+.cell-button { text-align: start; font-weight: inherit; color: inherit; min-width: 2rem; }
+.cell-editor { display: grid; gap: .32rem; min-width: max(10rem, 18ch); white-space: normal; }
+.cell-editor .notice { font-weight: 400; }
+.color-options { margin-bottom: .65rem; gap: .4rem; }
+.color-options button { width: 1.72rem; min-height: 1.72rem; padding: 0; border-radius: 50%; }
+.color-options button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: .9rem; }
 th, td { padding: .6rem .75rem; vertical-align: middle; border-bottom: 1px solid var(--line); }
 thead th { color: var(--muted); font-weight: 650; background: var(--soft); white-space: nowrap; }
@@ -158,6 +166,7 @@ tbody tr:hover { background: var(--soft); }
 .swatch.planned-fixed { background: #687c96; }
 .swatch.deadline { background: #e39733; }
 .swatch.sleep { background: repeating-linear-gradient(135deg, var(--line) 0 3px, var(--soft) 3px 6px); border: 1px solid var(--line); }
+.swatch.current-time { height: 2px; background: #dc5346; }
 .planner-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, 23%); gap: 1rem; align-items: start; }
 .planner-aside { display: grid; gap: 1rem; }
 .calendar-panel { padding-inline: .9rem; }
@@ -240,12 +249,35 @@ dialog > :not(:first-child) { margin-top: .85rem; }
 .metric-grid span { color: var(--muted); font-size: .83rem; }
 .rating-metrics > div { background: var(--soft); box-shadow: none; padding: .65rem; }
 .multi-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: .8rem; }
+.admin-criteria { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: .8rem; }
+.matrix { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem .45rem; color: var(--muted); font-size: .85rem; }
+.matrix > :first-child { grid-column: 2; }
+.matrix-plot { position: relative; height: 15rem; border: 1px solid var(--line); border-radius: .35rem;
+  background: linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat,
+    linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat, var(--soft); }
+.matrix-y, .matrix-x { display: grid; place-items: center; }
+.matrix-x { grid-template-columns: repeat(5, 1fr); grid-column: 2; }
+.matrix-x-label { grid-column: 2; text-align: center; }
+.matrix-point { position: absolute; width: .82rem; height: .82rem; transform: translate(-50%, -50%); cursor: help;
+  border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.matrix-point > span { display: none; position: absolute; z-index: 1; bottom: 1.05rem; width: 10rem; left: 50%;
+  transform: translateX(-50%); text-align: center; padding: .4rem .55rem; border: 1px solid var(--line);
+  border-radius: .35rem; color: var(--ink); background: var(--surface); box-shadow: var(--shadow); }
+.matrix-point:is(:hover, :focus) { z-index: 1; }
+.matrix-point:is(:hover, :focus) > span { display: block; }
+.chart-legend { gap: .75rem; color: var(--muted); font-size: .85rem; }
+.trend-chart { display: block; width: 100%; min-width: 32rem; max-height: 19rem; }
+.chart-tick { fill: var(--muted); font-size: 12px; }
+.chart-tick line { stroke: var(--line); }
+.filter-choices { gap: .5rem .85rem; padding: .2rem 0 .4rem; }
+.rating-summary > button { justify-self: start; }
 .bar-list { display: grid; gap: .55rem; }
 .bar-list span { color: var(--muted); font-size: .85rem; }
 .bar-line { display: grid; align-items: center; grid-template-columns: 1fr 2rem; gap: .5rem; }
 progress { width: 100%; accent-color: var(--accent); }
 .narrow { max-width: 37rem; }
 @media (max-width: 950px) {
+  .admin-criteria { grid-template-columns: minmax(0, 1fr); }
   .planning-shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: static; height: auto; padding: .72rem .9rem; border-right: 0; gap: .7rem; }
   .sidebar nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; max-width: 32rem; }

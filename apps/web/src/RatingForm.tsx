@@ -19,6 +19,7 @@ type Detail = { rating: Rating | null; facts: Record<string, string[]>; metrics:
 } }
 type Choice = [number | string, string]
 const scores = [1, 2, 3, 4, 5]
+const criterionNames = ['Coverage', 'Priority', 'Timeliness', 'Continuity', 'Balance', 'Constraints', 'Feasibility']
 
 function Select({ label, name, choices, initial, t }: {
   label: string; name: string; choices: Choice[]; initial?: number | string; t: T
@@ -46,6 +47,26 @@ export function RatingForm({ client, ratingKey, t }: { client: Client; ratingKey
 
   if (!info) return error ? <ErrorBox error={error} t={t} /> : <p role="status">{t('Đang tải đánh giá…', 'Loading rating…')}</p>
   const { schema, details: { rating, metrics, facts } } = info
+  if (saved && rating) {
+    const rows = schema.criteria.map((item, index) => ({
+      key: item.key, label: t(item.title, criterionNames[index]), ...rating.criteria[item.key],
+    }))
+    const weighted = rows.reduce((total, { satisfaction, importance }) => satisfaction == null ? total :
+      { score: total.score + satisfaction * importance, weight: total.weight + importance }, { score: 0, weight: 0 })
+    return <section className="form-stack rating-summary">
+      <p className="notice" role="status">{t('Đã lưu đánh giá.', 'Rating saved.')}</p>
+      {weighted.weight > 0 && <div className="metric-grid rating-metrics"><div>
+        <strong>{(weighted.score / weighted.weight).toFixed(1)} / 5</strong>
+        <span>{t('Điểm hài lòng có trọng số', 'Weighted satisfaction score')}</span>
+      </div></div>}
+      <div className="table-wrap"><table><thead><tr>
+        <th>{t('Tiêu chí', 'Criterion')}</th><th>{t('Hài lòng', 'Satisfaction')}</th><th>{t('Quan trọng', 'Importance')}</th>
+      </tr></thead><tbody>{rows.map(row => <tr key={row.key}>
+        <th scope="row">{row.label}</th><td>{row.satisfaction ?? '—'}</td><td>{row.importance ?? '—'}</td>
+      </tr>)}</tbody></table></div>
+      <button onClick={() => setSaved(false)}>{t('Sửa lại đánh giá', 'Edit rating')}</button>
+    </section>
+  }
   const choices: Choice[] = scores.map(score => [score, String(score)])
   const levels: Choice[] = scores.map((score, index) => [score,
     `${score} · ${t(['Rất không hài lòng', 'Không hài lòng', 'Trung lập', 'Hài lòng', 'Rất hài lòng'][index],
@@ -82,7 +103,7 @@ export function RatingForm({ client, ratingKey, t }: { client: Client; ratingKey
     </div>
     <h3>{t('Hài lòng và tầm quan trọng', 'Satisfaction and importance')}</h3>
     {schema.criteria.map((item, index) => <fieldset className="compact form-stack" key={item.key}>
-      <legend>{t(item.title, ['Coverage', 'Priority', 'Timeliness', 'Continuity', 'Balance', 'Constraints', 'Feasibility'][index])}</legend>
+      <legend>{t(item.title, criterionNames[index])}</legend>
       <p>{t(item.question, [
         'The schedule includes the work and time I need this week.',
         'Required and important tasks are prioritized.',
@@ -141,7 +162,6 @@ export function RatingForm({ client, ratingKey, t }: { client: Client; ratingKey
     <label>{t('Điều cần cải thiện (không bắt buộc)', 'What to improve (optional)')}
       <textarea name="comment_improve" maxLength={600} defaultValue={rating?.comment_improve} /></label>
     <ErrorBox error={error} t={t} />
-    {saved && <p className="notice" role="status">{t('Đã lưu đánh giá.', 'Rating saved.')}</p>}
     <button className="primary" disabled={busy}>{rating ? t('Cập nhật đánh giá', 'Update rating') : t('Gửi đánh giá', 'Submit rating')}</button>
   </form>
 }

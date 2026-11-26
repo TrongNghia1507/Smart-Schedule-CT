@@ -114,9 +114,16 @@ def test_conflict_and_rating_survive_restart():
         assert client.post(path + "/apply", headers=headers, json=apply_request).json()["version"] == 1
         assert client.post(path + "/apply", headers=headers,
                            json={**apply_request, "operation_id": str(uuid4())}).status_code == 409
+        assert client.get(API + "/history").json() == []
+        save_request = {"expected_version": 1, "operation_id": str(uuid4())}
+        saved = client.post(path + "/history", headers=headers, json=save_request)
+        assert saved.status_code == 201, saved.text
+        assert client.post(path + "/history", headers=headers, json=save_request).json() == saved.json()
         history = client.get(API + "/history").json()
         assert len(history) == 1
-        assert client.get(f"{API}/history/{history[0]['id']}").status_code == 200
+        detail = client.get(f"{API}/history/{history[0]['id']}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["entries"] == []
         payload = {"expected_version": 1}
         key = client.post(path + "/finalize", headers=headers, json=payload).json()["schedule_key"]
         final_download = client.post(path + "/download", headers=headers, json=payload)
@@ -148,6 +155,10 @@ def test_conflict_and_rating_survive_restart():
         assert "password_hash" not in overview["users"][0]
         assert admin.get(API + "/admin/ratings.csv", params={"score": 5}).content.startswith(b"\xef\xbb\xbf")
         assert b"conflict" not in admin.get(API + "/admin/ratings.csv", params={"score": 4}).content
+        assert b"conflict" in admin.get(API + "/admin/ratings.csv",
+                                       params=[("score", 4), ("score", 5), ("group", "other"),
+                                               ("group", auth.USER_GROUPS[0])]).content
+        assert admin.get(API + "/admin/ratings.csv", params={"empty": True}).content == b"\xef\xbb\xbf"
 
 
 def test_react_csv_template_and_recurring_calendar_colors():
@@ -172,6 +183,21 @@ def test_react_csv_template_and_recurring_calendar_colors():
         snapshot = client.get(API + "/draft/snapshot").json()
         assert "color" not in snapshot["fixed_tasks"][0]
         assert snapshot["fixed_tasks"][0]["after_min"] == 10
+        date_in_future = (date.fromisoformat(preview["week_start"]) + timedelta(days=14)).isoformat()
+        future = change(client, headers, preview["revision"], action="settings", week_start=date_in_future,
+                        sleep_start="23:00", sleep_end="05:00").json()
+        live = client.get(API + "/draft/preview?current_week=true").json()
+        assert live["week_start"] == preview["week_start"]
+        assert client.get(API + "/draft").json()["revision"] == future["revision"]
+        live_event = next(event for event in live["events"] if event.get("editable"))
+        move = {"action": "move", "task_id": original["id"], "old_start": live_event["start"],
+                "new_start": live_event["start"].replace("08:00", "08:10")}
+        assert change(client, headers, future["revision"], **move).status_code == 409
+        moved = change(client, headers, future["revision"], **move, current_week=True)
+        assert moved.status_code == 200, moved.text
+        assert moved.json()["fixed_tasks"][0]["start"] == "08:10"
+        assert moved.json()["settings"]["week_start"] == date_in_future
+        assert moved.json()["colors"][original["id"]] == "#182337"
 
 
 def test_login_requires_account_to_match_selected_role():
