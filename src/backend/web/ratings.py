@@ -11,6 +11,7 @@ from user_portal.metrics import criterion_facts
 
 from .auth import Session, planner
 from .errors import WebError, not_found
+from . import mysql_sync
 from .storage import database, db_path
 
 router = APIRouter(prefix="/ratings", tags=["ratings"])
@@ -83,4 +84,5 @@ def update(key: str, data: Rating, current: Session = Depends(planner)):
     payload = data.model_dump()
     payload["problems"] = list(dict.fromkeys(data.problems))
     repository.save_rating(current.user.id, key, week, payload, metrics, db_path())
+    mysql_sync.sync_rating_saved(current.user.id, week, payload, metrics)
     return detail(key, current)

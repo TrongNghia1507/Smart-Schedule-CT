@@ -23,10 +23,18 @@ USE smart_schedule_ct;
 CREATE TABLE users (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     username        VARCHAR(100) NOT NULL UNIQUE,          -- MSSV / Email / Tên đăng nhập
-    password_hash   VARCHAR(255) NOT NULL,                 -- bcrypt hash (tuyệt đối không lưu plain text)
-    display_name    VARCHAR(120) DEFAULT NULL,
+    password_hash   VARCHAR(255) NOT NULL,                 -- scrypt / bcrypt hash (không lưu plain text)
+    full_name       VARCHAR(120) NOT NULL DEFAULT '',      -- Họ tên hiển thị trên React Web & Admin
+    display_name    VARCHAR(120) DEFAULT NULL,             -- Tương thích ngược với auth_service
+    email           VARCHAR(255) DEFAULT NULL,
+    user_group      VARCHAR(80) DEFAULT NULL,              -- 'Sinh viên', 'Nhân viên văn phòng', ...
     role_group      ENUM('student', 'worker', 'other') NOT NULL DEFAULT 'student',
-    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    role            VARCHAR(16) NOT NULL DEFAULT 'user',   -- 'user' hoặc 'admin'
+    failed_attempts INT NOT NULL DEFAULT 0,
+    locked_until    VARCHAR(40) DEFAULT NULL,
+    created_at      VARCHAR(40) NOT NULL,                  -- Chuỗi ISO UTC (VD: '2026-11-26T15:00:00+00:00')
+    last_login_at   VARCHAR(40) DEFAULT NULL,
+    login_count     INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -318,4 +326,119 @@ CREATE TABLE feedbacks (
     CONSTRAINT chk_overall_sat      CHECK (overall_satisfaction BETWEEN 1 AND 5),
     CONSTRAINT chk_nps_score        CHECK (nps_score BETWEEN 0 AND 10),
     CONSTRAINT chk_conflict_clarity CHECK (conflict_clarity_score IS NULL OR (conflict_clarity_score BETWEEN 1 AND 5))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+REATE TABLE login_events (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT UNSIGNED NOT NULL,
+    at          VARCHAR(40) NOT NULL,
+    INDEX idx_login_events_at (at),
+    CONSTRAINT fk_login_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE finalized_schedules (
+    id                      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id                 INT UNSIGNED NOT NULL,
+    schedule_key            VARCHAR(128) NOT NULL,
+    week_start              VARCHAR(16) DEFAULT NULL,
+    complete                TINYINT(1) NOT NULL DEFAULT 0,
+    used_conflict_options   TINYINT(1) NOT NULL DEFAULT 0,
+    at                      VARCHAR(40) NOT NULL,
+    UNIQUE KEY uq_finalized_user_key (user_id, schedule_key),
+    CONSTRAINT fk_finalized_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ratings (
+    id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id             INT UNSIGNED NOT NULL,
+    schedule_key        VARCHAR(128) NOT NULL,
+    week_start          VARCHAR(16) DEFAULT NULL,
+    created_at          VARCHAR(40) NOT NULL,
+    updated_at          VARCHAR(40) NOT NULL,
+    overall             TINYINT NOT NULL,
+    nps                 TINYINT DEFAULT NULL,
+    adoption            VARCHAR(100) DEFAULT NULL,
+    vs_manual           TINYINT DEFAULT NULL,
+    conflict_clarity    TINYINT DEFAULT NULL,
+    criteria_json       LONGTEXT NOT NULL,
+    tradeoffs_json      LONGTEXT NOT NULL,
+    problems_json       LONGTEXT NOT NULL,
+    metrics_json        LONGTEXT NOT NULL,
+    comment_good        TEXT DEFAULT NULL,
+    comment_improve     TEXT DEFAULT NULL,
+    UNIQUE KEY uq_ratings_user_key (user_id, schedule_key),
+    INDEX idx_ratings_user (user_id),
+    CONSTRAINT fk_ratings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_sessions (
+    token_hash  CHAR(64) PRIMARY KEY,
+    user_id     INT UNSIGNED NOT NULL,
+    csrf        VARCHAR(64) NOT NULL,
+    expires     BIGINT NOT NULL,
+    INDEX idx_web_sessions_expires (expires),
+    CONSTRAINT fk_web_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_drafts (
+    user_id     INT UNSIGNED PRIMARY KEY,
+    revision    INT NOT NULL,
+    payload     LONGTEXT NOT NULL,
+    colors      TEXT NOT NULL,
+    notes       TEXT NOT NULL,
+    CONSTRAINT fk_web_drafts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_draft_undo (
+    user_id     INT UNSIGNED NOT NULL,
+    revision    INT NOT NULL,
+    state       LONGTEXT NOT NULL,
+    PRIMARY KEY (user_id, revision),
+    CONSTRAINT fk_web_draft_undo_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_plans (
+    seq             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    id              VARCHAR(64) PRIMARY KEY,
+    user_id         INT UNSIGNED NOT NULL,
+    draft_revision  INT NOT NULL,
+    state           LONGTEXT NOT NULL,
+    INDEX web_plans_user (user_id, draft_revision, seq),
+    CONSTRAINT fk_web_plans_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_history (
+    seq         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+    user_id     INT UNSIGNED NOT NULL,
+    id          VARCHAR(64) NOT NULL,
+    week_start  VARCHAR(16) NOT NULL,
+    record      LONGTEXT NOT NULL,
+    PRIMARY KEY (user_id, id),
+    INDEX idx_web_history_order (user_id, week_start, seq),
+    CONSTRAINT fk_web_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_operations (
+    user_id         INT UNSIGNED NOT NULL,
+    operation_id    VARCHAR(64) NOT NULL,
+    kind            VARCHAR(32) NOT NULL,
+    payload         LONGTEXT NOT NULL,
+    PRIMARY KEY (user_id, operation_id),
+    CONSTRAINT fk_web_operations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_finalized (
+    user_id         INT UNSIGNED NOT NULL,
+    schedule_key    VARCHAR(128) NOT NULL,
+    week_start      VARCHAR(16) NOT NULL,
+    metrics         LONGTEXT NOT NULL,
+    PRIMARY KEY (user_id, schedule_key),
+    CONSTRAINT fk_web_finalized_ref FOREIGN KEY (user_id, schedule_key)
+        REFERENCES finalized_schedules(user_id, schedule_key) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE web_legacy_history_imports (
+    user_id     INT UNSIGNED NOT NULL,
+    history_id  VARCHAR(64) NOT NULL,
+    PRIMARY KEY (user_id, history_id),
+    CONSTRAINT fk_web_legacy_imports_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -24,7 +24,7 @@ from .auth import Session, planner
 from .draft import check_revision, export_file, load_draft, require_valid
 from .errors import WebError, not_found, stale
 from .storage import database, encode
-
+from . import mysql_sync
 router = APIRouter(prefix="/plans", tags=["plans"])
 Language = Literal["vi", "en"]
 
@@ -186,6 +186,9 @@ def create(data: CreatePlan, lang: Language = "vi", current: Session = Depends(p
         "applied": [],
     })
     plan_id = str(uuid4())
+    mysql_sched_id = mysql_sync.sync_plan_created(user_id, state)
+    if mysql_sched_id is not None:
+        state["mysql_schedule_id"] = mysql_sched_id
     with database(write=True) as conn:
         prior = cached_operation(conn, user_id, data.operation_id, "plan", request)
         if prior:
@@ -193,7 +196,7 @@ def create(data: CreatePlan, lang: Language = "vi", current: Session = Depends(p
             _, state = stored_plan(conn, user_id, plan_id)
         else:
             check_revision(load_draft(conn, user_id), data.expected_revision)
-            conn.execute("INSERT INTO web_plans VALUES (?,?,?,?)",
+            conn.execute("INSERT INTO web_plans(id, user_id, draft_revision, state) VALUES (?,?,?,?)",
                          (plan_id, user_id, draft.revision, encode(state)))
             save_operation(conn, user_id, data.operation_id, "plan", request, plan_id)
     return present(user_id, plan_id, draft.revision, state, lang)
@@ -232,6 +235,8 @@ def analyze(plan_id: UUID, data: ConflictRequest, lang: Language = "vi", current
         latest.reports[data.task_id] = (report, scoped)
         state = dump_state(latest, latest.cached_plan, base_of(current_state))
         conn.execute("UPDATE web_plans SET state=? WHERE id=?", (encode(state), plan_id))
+    mysql_sync.sync_conflict_analyzed(user_id, state, data.task_id, report)
+
     return present(user_id, plan_id, row["draft_revision"], state, lang)
 
 
@@ -264,6 +269,11 @@ def apply(plan_id: UUID, data: ApplyRequest, lang: Language = "vi", current: Ses
         "schedule_version": engine.context.schedule_version,
     }
     updated = dump_state(engine, result, {**base_of(state), "applied": [*state["applied"], applied]})
+    new_mysql_id = mysql_sync.sync_option_applied(
+        user_id, state.get("mysql_schedule_id"), updated, data.task_id, data.option_id, action.get("new_duration")
+    )
+    if new_mysql_id is not None:
+        updated["mysql_schedule_id"] = new_mysql_id
     with database(write=True) as conn:
         prior = cached_operation(conn, user_id, data.operation_id, "apply", request)
         if prior:
@@ -290,7 +300,7 @@ def insert_history(conn, user_id, record):
     rows = conn.execute("SELECT record FROM web_history WHERE user_id=? AND week_start=?",
                         (user_id, record["week_start"]))
     number_history_record(record, [json.loads(row["record"]) for row in rows])
-    conn.execute("INSERT INTO web_history VALUES (?,?,?,?)",
+    conn.execute("INSERT INTO web_history(user_id, id, week_start, record) VALUES (?,?,?,?)",
                  (user_id, record["id"], record["week_start"], encode(record)))
     return record
 
@@ -308,7 +318,9 @@ def save_history(plan_id: UUID, data: VersionedOperation, current: Session = Dep
         verify_version(state, data.expected_version)
         record = insert_history(conn, user_id, history_record(state))
         save_operation(conn, user_id, data.operation_id, "history", request, record)
-        return record
+    mysql_sync.sync_history_saved(user_id, state, record)
+            
+    return record
 
 
 class Finalize(BaseModel):

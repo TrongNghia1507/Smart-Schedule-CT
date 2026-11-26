@@ -24,11 +24,13 @@ from schedule_input.infrastructure.repositories import InMemoryRepository, JsonF
 from .auth import Session, planner
 from .errors import WebError, not_found, stale
 from .locale import localize
+from . import mysql_sync
 from .storage import database, encode
 
 router = APIRouter(prefix="/draft", tags=["draft"])
 MAX_CSV_BYTES = 2 * 1024 * 1024
 Color = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
+
 
 
 @dataclass
@@ -66,8 +68,10 @@ def load_payload(payload):
     return data
 
 
-def load_draft(conn, user_id: int) -> Draft:
-    row = conn.execute("SELECT * FROM web_drafts WHERE user_id=?", (user_id,)).fetchone()
+
+def load_draft(conn, user_id: int, *, for_update: bool = False) -> Draft:
+    lock = " FOR UPDATE" if for_update and getattr(conn, "is_mysql", False) else ""
+    row = conn.execute(f"SELECT * FROM web_drafts WHERE user_id=?{lock}", (user_id,)).fetchone()
     data = load_payload(json.loads(row["payload"]) if row else None)
     service = TaskInputService(data, InMemoryRepository(), data.window.now)
     if not row:
@@ -175,7 +179,7 @@ def read(current: Session = Depends(planner)):
 @router.post("/changes")
 def change(command: Change, current: Session = Depends(planner)):
     with database(write=True) as conn:
-        draft = load_draft(conn, current.user.id)
+        draft = load_draft(conn, current.user.id, for_update=True)
         check_revision(draft, command.expected_revision)
         previous = draft.saved_data()
         service = draft.service
@@ -218,10 +222,12 @@ def change(command: Change, current: Session = Depends(planner)):
             service.data = load_payload(draft.previous["payload"])
             draft.colors = draft.previous["colors"]
             draft.notes = draft.previous["notes"]
-            conn.execute(
-                "DELETE FROM web_draft_undo WHERE user_id=? AND revision="
-                "(SELECT MAX(revision) FROM web_draft_undo WHERE user_id=?)", (current.user.id, current.user.id),
-            )
+            max_rev = conn.execute(
+                "SELECT MAX(revision) AS r FROM web_draft_undo WHERE user_id=?", (current.user.id,)
+            ).fetchone()
+            if max_rev and max_rev["r"] is not None:
+                conn.execute("DELETE FROM web_draft_undo WHERE user_id=? AND revision=?",
+                             (current.user.id, max_rev["r"]))
             draft.previous = previous_state(conn, current.user.id)
             previous = None
         elif command.action == "sample":
@@ -233,8 +239,8 @@ def change(command: Change, current: Session = Depends(planner)):
         service.now_override = datetime.combine(service.data.window.week_start, time.min)
         service.data.window = replace(service.data.window, now=service.now_override)
         save_draft(conn, current.user.id, draft, previous)
-        return describe(draft)
-
+    mysql_sync.sync_draft(current.user.id, draft.service.data, draft.colors)
+    return describe(draft)
 
 def preview_input(source: ScheduleInput, today: datetime, current_week: bool):
     data = deepcopy(source)
@@ -322,7 +328,8 @@ def import_csv(expected_revision: int = Query(ge=0), content: bytes = Depends(re
         previous = draft.saved_data()
         draft.service.data = candidate
         save_draft(conn, current.user.id, draft, previous)
-        return describe(draft)
+    mysql_sync.sync_draft(current.user.id, draft.service.data, draft.colors)    
+    return describe(draft)
 
 
 @router.get("/export")

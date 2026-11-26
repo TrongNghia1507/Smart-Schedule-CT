@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import pymysql
 import logging
 import os
 import sqlite3
@@ -101,8 +101,8 @@ def ready():
     try:
         with database() as conn:
             conn.execute("SELECT 1 FROM web_drafts LIMIT 1").fetchone()
-    except (OSError, sqlite3.Error):
-        logger.exception("SQLite readiness failed")
+    except (OSError, sqlite3.Error,pymysql.Error):
+        logger.exception("Database readiness failed")
         return error(503, "NOT_READY", "Cơ sở dữ liệu chưa sẵn sàng.")
     return {"status": "ready"}
 

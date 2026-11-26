@@ -310,7 +310,7 @@ def analyze_conflict(user_id: int, schedule_id: int, target_task_code: str,
         cur.executemany(
             "INSERT INTO conflict_options (schedule_id, target_task_code, target_task_name, "
             "deficit_min, option_code, priority_rank, is_available, unavailable_reason, "
-            "changes_summary, ai_explanation, ai_status, max_new_duration_min, "
+            "changes_summary,max_new_duration_min, "
             "action_payload_json, preview_blocks_json, warnings_json, unplaced_json) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
             "ON DUPLICATE KEY UPDATE target_task_name=VALUES(target_task_name), "

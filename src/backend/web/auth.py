@@ -88,7 +88,7 @@ def start_session(user: auth.User, request: Request, response: Response) -> dict
         conn.execute("DELETE FROM web_sessions WHERE expires<=?", (now,))
         if previous := request.cookies.get(COOKIE):
             conn.execute("DELETE FROM web_sessions WHERE token_hash=?", (token_hash(previous),))
-        conn.execute("INSERT INTO web_sessions VALUES (?,?,?,?)", (token_hash(token), user.id, csrf, now + SESSION_SECONDS))
+        conn.execute( "INSERT INTO web_sessions(token_hash, user_id, csrf, expires) VALUES (?,?,?,?)", (token_hash(token), user.id, csrf, now + SESSION_SECONDS))
     response.set_cookie(COOKIE, token, max_age=SESSION_SECONDS, httponly=True,
                         secure=secure_cookies() or request.url.scheme == "https", samesite="lax")
     return Session(user, token_hash(token), csrf).public()

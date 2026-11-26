@@ -13,8 +13,14 @@ from .config import get_backend_settings
 from .db import get_connection
 
 DEFAULT_SCHEMA = Path(__file__).resolve().parents[2] / "database" / "schema.sql"
-TABLES_DROP_ORDER = ["feedbacks", "schedule_histories", "conflict_options", "schedule_blocks",
-                     "schedules", "deadline_tasks", "fixed_tasks", "user_week_settings", "users"]
+TABLES_DROP_ORDER = [
+    "web_finalized", "web_legacy_history_imports", "web_operations", "web_history",
+    "web_plans", "web_draft_undo", "web_drafts", "web_sessions",
+    "ratings", "finalized_schedules", "login_events",
+    "feedbacks", "schedule_histories", "conflict_options", "schedule_blocks",
+    "schedules", "deadline_tasks", "fixed_tasks", "user_week_settings", "users",
+]
+
 
 
 def split_statements(sql_text: str) -> list[str]:

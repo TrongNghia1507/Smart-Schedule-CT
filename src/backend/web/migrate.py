@@ -142,8 +142,10 @@ def migrate(source_db: Path, source_dir: Path, destination: Path, *, apply=False
                                       (user_id, record["id"]))
                 if not marker.rowcount:
                     continue
-                inserted = conn.execute("INSERT OR IGNORE INTO web_history VALUES (?,?,?,?)",
-                                        (user_id, record["id"], record["week_start"], encode(record)))
+                inserted = conn.execute(
+                    "INSERT OR IGNORE INTO web_history(user_id, id, week_start, record) VALUES (?,?,?,?)",
+                    (user_id, record["id"], record["week_start"], encode(record)),
+                )
                 summary["history_imported"] += inserted.rowcount
     return summary
 
