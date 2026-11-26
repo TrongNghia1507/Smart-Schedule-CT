@@ -34,11 +34,14 @@ class User:
 def init_portal(path=None, *, require_configured_password=False) -> None:
     """Tạo bảng và tài khoản admin mặc định (mật khẩu 123, đổi được bằng biến môi trường)."""
     init_schema(path)
+    configured = os.environ.get("SCHEDULE_ADMIN_PASSWORD", "")
     with connect(path) as conn:
         conn.execute("BEGIN IMMEDIATE")
-        if conn.execute("SELECT 1 FROM users WHERE role='admin'").fetchone():
+        existing = conn.execute("SELECT id, password_hash FROM users WHERE role='admin'").fetchone()
+        if existing:
+            if len(configured) >= MIN_PASSWORD_LEN and verify_password(DEFAULT_ADMIN_PASSWORD, existing["password_hash"]):
+                conn.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(configured), existing["id"]))
             return
-        configured = os.environ.get("SCHEDULE_ADMIN_PASSWORD", "")
         if require_configured_password and len(configured) < MIN_PASSWORD_LEN:
             raise RuntimeError("Đặt SCHEDULE_ADMIN_PASSWORD khi khởi tạo tài khoản admin trên HTTPS.")
         password = configured or DEFAULT_ADMIN_PASSWORD
@@ -47,7 +50,6 @@ def init_portal(path=None, *, require_configured_password=False) -> None:
             "VALUES (?, 'Quản trị viên', 'admin', ?, ?)",
             (ADMIN_USERNAME, hash_password(password), utc_now()),
         )
-
 
 def validate_registration(username, full_name, email, password, confirm, consent) -> list[str]:
     errors = []

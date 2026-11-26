@@ -12,7 +12,18 @@ from pathlib import Path
 from .config import get_backend_settings
 from .db import get_connection
 
-DEFAULT_SCHEMA = Path(__file__).resolve().parents[2] / "database" / "schema.sql"
+def _find_default_schema() -> Path:
+    for candidate in (
+        Path.cwd() / "database" / "schema.sql",
+        Path("/app/database/schema.sql",),
+        Path(__file__).resolve().parents[2] / "database" / "schema.sql",
+    ):
+        if candidate.exists():
+            return candidate
+    return Path.cwd() / "database" / "schema.sql"
+
+
+DEFAULT_SCHEMA = _find_default_schema()
 TABLES_DROP_ORDER = [
     "web_finalized", "web_legacy_history_imports", "web_operations", "web_history",
     "web_plans", "web_draft_undo", "web_drafts", "web_sessions",
