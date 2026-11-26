@@ -36,6 +36,30 @@
 
 Ví dụ khi trình bày, hãy mở `criteria.py` và chỉ vào mục tiêu `early_finish` được đăng ký qua `@register`. Bộ giải chọn mục tiêu dựa trên tên và trọng số trong cấu hình. Nhóm có thể thêm mục tiêu ở cùng chỗ và tiếp tục dùng luồng nhập dữ liệu, xếp lịch và hiển thị hiện tại.
 
+## Chạy với codespaces
+
+Lệnh cài đặt và build lần đầu:
+
+```
+nvm install 24
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+npm --prefix apps/web ci
+npm --prefix apps/web run build
+```
+
+Lệnh khởi động qua vite:
+
+```
+if [[ -z "${SCHEDULE_ADMIN_PASSWORD:-}" ]]; then
+  read -rsp 'Mật khẩu admin mới (ít nhất 6 ký tự): ' SCHEDULE_ADMIN_PASSWORD
+  printf '\n'
+fi
+export SCHEDULE_ADMIN_PASSWORD
+export SCHEDULE_SECURE_COOKIE=true
+.venv/bin/python -m uvicorn backend.web.app:app --host 0.0.0.0 --port 8501
+```
+
 ## Chạy từ thư mục gốc
 
 Ứng dụng web dùng Python 3.11 trở lên và Node 24. Ví dụ trên PowerShell, với Python 3.12 đã cài:
