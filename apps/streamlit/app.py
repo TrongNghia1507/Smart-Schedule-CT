@@ -19,22 +19,40 @@ from schedule_input.infrastructure.io import SampleDataProvider,CsvXlsxGateway,F
 
 st.set_page_config(page_title=tr('Quản lý lịch tuần',st.query_params.get('lang','vi')),page_icon='📅',layout='wide')
 if st.session_state.get('app_version') != 4 or ('service' in st.session_state and type(st.session_state.service.data) is not ScheduleInput):
+    signed_in=st.session_state.get('auth_user')
     st.session_state.clear()
     st.session_state.app_version=4
+    if signed_in:st.session_state.auth_user=signed_in
+
+# --- Đăng ký / đăng nhập / phân quyền -------------------------------------
+try:
+    from user_portal.auth import init_portal
+except ModuleNotFoundError:  # chưa chạy lại `pip install -e .` sau khi thêm user_portal
+    import sys
+    sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'src'))
+    from user_portal.auth import init_portal
+from user_portal.paths import user_data_dir,user_history_path
+from user_portal.ui_auth import render_auth_page,logout
+from user_portal.ui_admin import render_admin_page
+from user_portal.ui_rating import render_finalize_and_rating
+from schedule_input.ui.theme import apply_theme
+
+@st.cache_resource
+def portal_ready():
+    init_portal();return True
+portal_ready()
+st.session_state.setdefault('ui_theme',st.query_params.get('theme','light') if st.query_params.get('theme','light') in ('light','dark') else 'light')
+st.session_state.setdefault('ui_language',st.query_params.get('lang','vi') if st.query_params.get('lang','vi') in ('vi','en') else 'vi')
+current_user=st.session_state.get('auth_user')
+if current_user is None:
+    apply_theme(st.session_state.ui_theme);render_auth_page();st.stop()
+if current_user.is_admin:
+    apply_theme(st.session_state.ui_theme);render_admin_page(current_user);st.stop()
 
 
 def draft_repository():
-    draft_name = 'schedule_input_draft.json'
-    configured_dir = os.environ.get('SCHEDULE_INPUT_DATA_DIR')
-    if configured_dir is not None:
-        return JsonFileRepository(Path(configured_dir) / draft_name)
-
-    app_dir = Path(__file__).resolve().parent
-    draft = app_dir / 'data' / draft_name
-    legacy_draft = app_dir.parents[1] / 'src' / 'input_module' / 'data' / draft_name
-    if not draft.exists() and legacy_draft.is_file():
-        draft = legacy_draft
-    return JsonFileRepository(draft)
+    # Mỗi người dùng có thư mục dữ liệu riêng, nên nháp của người này không lẫn sang người khác.
+    return JsonFileRepository(user_data_dir(current_user.id) / 'schedule_input_draft.json')
 
 
 if 'service' not in st.session_state:
@@ -44,12 +62,11 @@ if 'service' not in st.session_state:
     st.session_state.service=TaskInputService(data,repo,override)
     st.session_state.notes=notes;st.session_state.page='input';st.session_state.rev=0
     st.session_state.old_week=data.window.week_start<default.window.week_start
-from schedule_input.ui.theme import apply_theme,banner,status_badges
+st.session_state.history_path=user_history_path(current_user.id)
+from schedule_input.ui.theme import banner,status_badges
 from schedule_input.ui.task_table import render_table
 from schedule_input.ui.preferences import load_colors,save_colors,color_picker
 from schedule_input.application.calendar_edit import moved_task
-st.session_state.setdefault('ui_theme',st.query_params.get('theme','light') if st.query_params.get('theme','light') in ('light','dark') else 'light')
-st.session_state.setdefault('ui_language',st.query_params.get('lang','vi') if st.query_params.get('lang','vi') in ('vi','en') else 'vi')
 mode=st.session_state.ui_theme
 apply_theme(mode)
 s=st.session_state.service
@@ -297,7 +314,11 @@ def preview_panel():
         editor(*st.session_state.edit_request)
 
 banner(st.session_state.page)
-nav_input,nav_preview,_,language_col,theme_col=st.columns([1.2,1.5,2,1.3,1])
+nav_input,nav_preview,account_col,language_col,theme_col=st.columns([1.2,1.5,2,1.3,1])
+with account_col:
+    who,out=st.columns([2,1.2],vertical_alignment='center')
+    who.markdown(f'👤 **{current_user.full_name}**')
+    if out.button('Đăng xuất',key='logout_button',use_container_width=True):logout()
 if nav_input.button(tr('Nhập dữ liệu'),type='primary' if st.session_state.page=='input' else 'secondary'):
     st.session_state.page='input';refresh()
 if nav_preview.button(tr('Xem trước lịch'),type='primary' if st.session_state.page=='preview' else 'secondary'):
@@ -320,7 +341,7 @@ if st.session_state.notes:
 if s.repository.blocked:
     st.error(tr('File nháp được bảo vệ. Chọn file mới để tiếp tục.'))
     if st.button(tr('Dùng file nháp mới')):
-        s.repository=JsonFileRepository(Path(__file__).parent/'data'/f'draft_{datetime.now():%Y%m%d_%H%M%S}.json');st.session_state.notes=[];refresh()
+        s.repository=JsonFileRepository(user_data_dir(current_user.id)/f'draft_{datetime.now():%Y%m%d_%H%M%S}.json');st.session_state.notes=[];refresh()
     st.stop()
 if st.session_state.old_week:
     st.warning(tr('File nháp đang dùng tuần cũ. Bạn muốn giữ tuần hay chuyển sang tuần hiện tại?'))

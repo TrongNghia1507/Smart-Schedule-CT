@@ -35,6 +35,25 @@
 
 Ví dụ khi trình bày, hãy mở `criteria.py` và chỉ vào mục tiêu `early_finish` được đăng ký qua `@register`. Bộ giải chọn mục tiêu dựa trên tên và trọng số trong cấu hình. Nhóm có thể thêm mục tiêu ở cùng chỗ và tiếp tục dùng luồng nhập dữ liệu, xếp lịch và hiển thị hiện tại.
 
+## Chạy bằng github codespaces
+
+Lệnh khởi động (chạy một lần khi bắt đầu codespaces):
+```
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e . -r apps/streamlit/requirements.txt
+export TZ=Asia/Ho_Chi_Minh
+```
+
+Lệnh chạy streamlit (Có thể chạy sau khi chạy lệnh khởi động):
+```
+python -m streamlit run apps/streamlit/app.py \
+  --server.address 0.0.0.0 \
+  --server.port 8501 \
+  --server.headless true
+```
+
+
 ## Chạy từ thư mục gốc
 
 ```powershell

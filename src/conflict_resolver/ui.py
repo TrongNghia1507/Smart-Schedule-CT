@@ -3,7 +3,9 @@ import json
 from datetime import date, datetime, timedelta, timezone
 
 import streamlit as st
-from scheduling_algorithm.core_algorithm.history import load_schedule_history, save_selected_schedule
+from scheduling_algorithm.core_algorithm.history import (
+    DEFAULT_HISTORY_PATH, delete_schedule_history, load_schedule_history, save_selected_schedule,
+)
 from .calendar_view import (
     PREVIEW_CSS, calendar_events, deadline_styles as build_deadline_styles,
     option_preview_html, schedule_blocks,
@@ -16,6 +18,11 @@ from .planning import (
     PlanningSession,
     context_from_snapshot,
 )
+
+
+def _history_path():
+    """Mỗi người dùng đăng nhập có file lịch sử riêng; không đăng nhập thì dùng file chung cũ."""
+    return st.session_state.get("history_path", DEFAULT_HISTORY_PATH)
 
 
 def _history_schedule_data(record, lang):
@@ -46,15 +53,47 @@ def _history_schedule_data(record, lang):
     return week_start, entries, blocks, styles
 
 
+def _edit_history_schedule(record):
+    """Load an independent editable draft; never update the history record."""
+    from scheduling_algorithm.core_algorithm.history_input import input_from_history
+
+    service = st.session_state.get("service")
+    if service is None:
+        raise ValueError("Chưa mở trang nhập dữ liệu.")
+    candidate, notes = input_from_history(record)
+    service.repository.save(candidate, candidate.window.now)
+    service.history.append(service.data)
+    service.data = candidate
+    service.now_override = candidate.window.now
+    for key in list(st.session_state):
+        if (key in {"snapshot", "planning", "planning_snapshot", "planning_applied_options",
+                    "edit_request", "planned_click", "schedule_history_notice", "calendar_error",
+                    "calendar_message", "ask_clear", "ask_sample", "rating_open_key", "rating_submitted_key"}
+                or key.startswith(("table_error_", "table_event_", "form_"))):
+            st.session_state.pop(key, None)
+    st.session_state.page = "input"
+    st.session_state.old_week = False
+    st.session_state.preview_current_week = False
+    st.session_state.calendar_fullscreen = False
+    st.session_state.rev = st.session_state.get("rev", 0) + 1
+    st.session_state.notes = ["Đã nạp bản sao của lịch đã lưu để chỉnh sửa. Lịch sử gốc được giữ nguyên.", *notes]
+
+
 def render_history(lang="vi"):
     """Browse all saved weeks independently of the current planning result."""
+    if st.session_state.pop("history_reset_filters", False):
+        st.session_state.pop("schedule_history_week", None)
+        st.session_state.pop("schedule_history_version", None)
+    notice = st.session_state.pop("history_delete_notice", None)
+    if notice:
+        st.success(notice)
     try:
-        records = load_schedule_history()
+        records = load_schedule_history(_history_path())
     except (OSError, ValueError) as exc:
         st.error("Không đọc được lịch sử: " + str(exc))
         return
     if not records:
-        st.info("Chưa có lịch được lưu. Hãy lưu lịch hiện tại hoặc áp dụng một option để tạo phiên bản đầu tiên.")
+        st.info("Chưa có lịch được lưu. Bấm Lưu lịch hiện tại vào history để tạo phiên bản đầu tiên.")
         return
 
     try:
@@ -87,6 +126,41 @@ def render_history(lang="vi"):
     record_id = st.selectbox("Chọn phiên bản đã lưu", options=choices,
                              format_func=record_label, key="schedule_history_version")
     record = by_id[record_id]
+    if st.session_state.get("history_delete_record") not in (None, record_id):
+        st.session_state.pop("history_delete_record", None)
+    view, edit, delete = st.columns(3)
+    if view.button("Xem lịch", key=f"history_view_{record_id}"):
+        st.session_state.history_view_record = record_id
+    if edit.button("Chỉnh sửa lịch", key=f"history_edit_{record_id}"):
+        try:
+            _edit_history_schedule(record)
+        except (KeyError, OSError, TypeError, ValueError) as exc:
+            st.error("Không nạp được lịch để chỉnh sửa: " + str(exc))
+            return
+        st.rerun()
+    if delete.button("Xóa lịch", key=f"history_delete_{record_id}"):
+        st.session_state.history_delete_record = record_id
+    if st.session_state.get("history_delete_record") == record_id:
+        st.warning("Xóa phiên bản này khỏi lịch sử? " + record_label(record_id))
+        confirm, cancel = st.columns(2)
+        if confirm.button("Xác nhận xóa", key=f"history_delete_confirm_{record_id}"):
+            try:
+                delete_schedule_history(record_id, path=_history_path())
+            except (OSError, ValueError, TypeError) as exc:
+                st.error("Chưa xóa được lịch: " + str(exc))
+                return
+            st.session_state.pop("history_delete_record", None)
+            if st.session_state.get("history_view_record") == record_id:
+                st.session_state.pop("history_view_record", None)
+            # Reset widget selections on the next render, before creating them.
+            st.session_state.history_reset_filters = True
+            st.session_state.history_delete_notice = "Đã xóa phiên bản lịch khỏi history."
+            st.rerun()
+        if cancel.button("Hủy", key=f"history_delete_cancel_{record_id}"):
+            st.session_state.pop("history_delete_record", None)
+            st.rerun()
+    if st.session_state.get("history_view_record") != record_id:
+        return
     try:
         week_start, entries, blocks, styles = _history_schedule_data(record, lang)
     except (KeyError, TypeError, ValueError) as exc:
@@ -323,23 +397,10 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
                         applied_options.append(selected_option)
                         st.session_state.planning_applied_options = applied_options
 
-                        try:
-                            save_selected_schedule(
-                                context=session.context,
-                                result=selected_result,
-                                week_start=week_start.isoformat(),
-                                selection={**selected_option, "applied_options": applied_options},
-                            )
-                        except (OSError, ValueError, TypeError) as exc:
-                            st.session_state.schedule_history_notice = (
-                                "error",
-                                "Phương án đã được áp dụng nhưng chưa lưu được history: "
-                                + str(exc) + ". Bạn có thể thử nút Lưu lịch hiện tại vào history.",
-                            )
-                        else:
-                            st.session_state.schedule_history_notice = (
-                                "success", "Đã áp dụng phương án và lưu lịch vào history.",
-                            )
+                        st.session_state.schedule_history_notice = (
+                            "success",
+                            "Đã áp dụng phương án; chưa lưu vào history.",
+                        )
 
                         st.rerun()
 
@@ -361,6 +422,8 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
                     "source": "manual_save",
                     "applied_options": st.session_state.get("planning_applied_options", []),
                 },
+                path=_history_path(),
+                input_snapshot=snapshot.to_dict(),
             )
         except (OSError, ValueError, TypeError) as exc:
             st.error("Chưa lưu được history: " + str(exc))
@@ -375,6 +438,17 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
         "result": result.model_dump(),
     }
 
+    user = st.session_state.get("auth_user")
+    applied = list(st.session_state.get("planning_applied_options", []))
+    download_args = {}
+    if user is not None:
+        from user_portal.ui_rating import finalize_schedule
+
+        # Tải lịch xuống cũng được xem là đã chốt lịch: bảng đánh giá sẽ tự mở.
+        download_args = {"on_click": finalize_schedule,
+                         "args": (user, export_data["context"], export_data["result"],
+                                  week_start.isoformat(), applied)}
+
     st.download_button(
         "Lưu lịch và trạng thái JSON",
         data=json.dumps(
@@ -384,5 +458,11 @@ def render(snapshot, controls, fixed_colors, deadline_styles, lang="vi"):
         ),
         file_name="schedule.json",
         mime="application/json",
+        **download_args,
     )
+    if user is not None:
+        from user_portal.ui_rating import render_finalize_and_rating
+
+        render_finalize_and_rating(user, export_data["context"], export_data["result"],
+                                   week_start.isoformat(), applied)
     return session.context, result
