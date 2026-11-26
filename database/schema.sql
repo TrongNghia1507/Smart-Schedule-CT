@@ -327,7 +327,7 @@ CREATE TABLE feedbacks (
     CONSTRAINT chk_nps_score        CHECK (nps_score BETWEEN 0 AND 10),
     CONSTRAINT chk_conflict_clarity CHECK (conflict_clarity_score IS NULL OR (conflict_clarity_score BETWEEN 1 AND 5))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-REATE TABLE login_events (
+CREATE TABLE login_events (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id     INT UNSIGNED NOT NULL,
     at          VARCHAR(40) NOT NULL,
