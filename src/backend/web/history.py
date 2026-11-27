@@ -10,9 +10,10 @@ from scheduling_algorithm.core_algorithm.history_input import input_from_history
 
 from .auth import Session, planner
 from .draft import ChangeBase, check_revision, describe, export_file, load_draft, save_draft
-from .errors import not_found
+from .errors import WebError, not_found
 from . import mysql_sync
 from .plans import Language, localized_events
+from .ratings import register_rating_schedule
 from .storage import database, encode
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -82,6 +83,20 @@ def export(record_id: str, current: Session = Depends(planner)):
     version = record.get("version")
     suffix = version if isinstance(version, int) else "old"
     return export_file(encode(record), f"schedule_{week}_v{suffix}.json", "application/json")
+
+
+@router.post("/{record_id}/rating")
+def prepare_rating(record_id: str, current: Session = Depends(planner)):
+    user_id = current.user.id
+    with database(write=True) as conn:
+        record = owned_record(conn, user_id, record_id)
+        selection = record.get("selection") or {}
+        applied = record.get("applied_options") or selection.get("applied_options") or []
+        try:
+            key = register_rating_schedule(conn, user_id, record["context"], record["result"], record["week_start"], applied)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise WebError(422, "RATING_SNAPSHOT_INVALID", "Bản lịch đã lưu thiếu dữ liệu để đánh giá.") from exc
+    return {"schedule_key": key}
 
 
 @router.delete("/{record_id}", status_code=204)

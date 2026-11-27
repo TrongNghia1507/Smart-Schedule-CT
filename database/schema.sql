@@ -426,6 +426,12 @@ CREATE TABLE web_operations (
     CONSTRAINT fk_web_operations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE web_rating_prompts (
+    user_id     INT UNSIGNED PRIMARY KEY,
+    plan_count  BIGINT UNSIGNED NOT NULL,
+    CONSTRAINT fk_web_rating_prompts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE web_finalized (
     user_id         INT UNSIGNED NOT NULL,
     schedule_key    VARCHAR(128) NOT NULL,

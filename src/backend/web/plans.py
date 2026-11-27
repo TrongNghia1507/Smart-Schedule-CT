@@ -17,12 +17,12 @@ from conflict_resolver.presentation import describe_changes
 from conflict_resolver.schedule_view import build_full_schedule
 from schedule_preparation.ui_adapter import snapshot_to_raw
 from scheduling_algorithm.core_algorithm.history import build_history_record, number_history_record
-from user_portal.metrics import compute_schedule_metrics, schedule_key
-from user_portal.repository import record_finalized
+from user_portal.metrics import schedule_key
 
 from .auth import Session, planner
 from .draft import check_revision, export_file, load_draft, require_valid
 from .errors import WebError, not_found, stale
+from .ratings import claim_rating_prompt, register_rating_schedule
 from .storage import database, encode
 from . import mysql_sync
 router = APIRouter(prefix="/plans", tags=["plans"])
@@ -310,6 +310,10 @@ def save_history(plan_id: UUID, data: VersionedOperation, current: Session = Dep
     user_id, plan_id = current.user.id, str(plan_id)
     request = {**data.model_dump(mode="json"), "plan_id": plan_id}
     with database(write=True) as conn:
+        # SQLite serializes writes at BEGIN IMMEDIATE. Lock this account's row
+        # on MySQL before reading the prompt state or numbering history.
+        if getattr(conn, "is_mysql", False):
+            conn.execute("SELECT id FROM users WHERE id=? FOR UPDATE", (user_id,)).fetchone()
         prior = cached_operation(conn, user_id, data.operation_id, "history", request)
         if prior:
             return prior
@@ -317,10 +321,12 @@ def save_history(plan_id: UUID, data: VersionedOperation, current: Session = Dep
         require_current(conn, user_id, row)
         verify_version(state, data.expected_version)
         record = insert_history(conn, user_id, history_record(state))
-        save_operation(conn, user_id, data.operation_id, "history", request, record)
+        key = register_rating_schedule(conn, user_id, state["context"], state["result"], state["week_start"], state["applied"])
+        response = {**record, "schedule_key": key, "rating_prompt": claim_rating_prompt(conn, user_id)}
+        save_operation(conn, user_id, data.operation_id, "history", request, response)
     mysql_sync.sync_history_saved(user_id, state, record)
-            
-    return record
+
+    return response
 
 
 class Finalize(BaseModel):
@@ -331,11 +337,7 @@ def finalize_state(conn, user_id, plan_id, expected_version):
     row, state = stored_plan(conn, user_id, plan_id)
     require_current(conn, user_id, row)
     verify_version(state, expected_version)
-    metrics = compute_schedule_metrics(state["context"], state["result"], state["applied"])
-    key = schedule_key(state["context"], state["result"], state["week_start"])
-    record_finalized(user_id, key, state["week_start"], metrics["complete"], bool(metrics["options_applied"]), conn=conn)
-    conn.execute("INSERT OR IGNORE INTO web_finalized VALUES (?,?,?,?)",
-                 (user_id, key, state["week_start"], encode(metrics)))
+    key = register_rating_schedule(conn, user_id, state["context"], state["result"], state["week_start"], state["applied"])
     return key, state
 
 

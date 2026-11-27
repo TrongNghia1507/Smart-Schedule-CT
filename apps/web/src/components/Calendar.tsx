@@ -54,7 +54,10 @@ function CalendarView({ events, week, lang, t, compact, mode, expanded, onDrop, 
   const view = preferred ?? (narrow ? 'day' : 'week')
   const date = view === 'day' ? day : week
   const dateFormat = new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
-    weekday: 'short', day: 'numeric', timeZone: 'UTC',
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+  })
+  const headerDate = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: '2-digit', timeZone: 'UTC',
   })
   useEffect(() => {
     const media = window.matchMedia(compactWidth)
@@ -94,7 +97,14 @@ function CalendarView({ events, week, lang, t, compact, mode, expanded, onDrop, 
       editable={Boolean(onDrop)} eventDurationEditable={false}
       eventDrop={event => { if (onDrop) onDrop(event); else event.revert() }}
       eventClick={event => onEvent?.(event.event)} eventInteractive={Boolean(onEvent)}
-      displayEventEnd dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
+      displayEventEnd dayHeaderContent={({ date }) => {
+        const label = dateFormat.format(date)
+        return <span className="calendar-day-heading" title={label}>
+          <span className="sr-only">{label}</span>
+          <strong aria-hidden="true">{calendarWeekdays[lang][(date.getUTCDay() + 6) % 7]}</strong>
+          <span aria-hidden="true">{headerDate.format(date)}</span>
+        </span>
+      }}
       slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
       eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
       eventClassNames={({ event }) => {

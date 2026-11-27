@@ -7,15 +7,38 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from user_portal import repository, rating_schema as schema
-from user_portal.metrics import criterion_facts
+from user_portal.metrics import compute_schedule_metrics, criterion_facts, schedule_key
 
 from .auth import Session, planner
 from .errors import WebError, not_found
 from . import mysql_sync
-from .storage import database, db_path
+from .storage import database, db_path, encode
 
 router = APIRouter(prefix="/ratings", tags=["ratings"])
 Score = Annotated[int, Field(ge=1, le=5, strict=True)]
+PROMPT_INTERVAL = 3
+
+
+def register_rating_schedule(conn, user_id, context, result, week_start, applied_options):
+    metrics = compute_schedule_metrics(context, result, applied_options)
+    key = schedule_key(context, result, week_start)
+    repository.record_finalized(user_id, key, week_start, metrics["complete"], bool(metrics["options_applied"]), conn=conn)
+    conn.execute("INSERT OR IGNORE INTO web_finalized VALUES (?,?,?,?)",
+                 (user_id, key, week_start, encode(metrics)))
+    return key
+
+
+def claim_rating_prompt(conn, user_id):
+    plan_count = conn.execute("SELECT COUNT(*) FROM web_plans WHERE user_id=?", (user_id,)).fetchone()[0]
+    previous = conn.execute("SELECT plan_count FROM web_rating_prompts WHERE user_id=?", (user_id,)).fetchone()
+    if plan_count - (previous["plan_count"] if previous else 0) < PROMPT_INTERVAL:
+        return False
+    conn.execute(
+        """INSERT INTO web_rating_prompts(user_id, plan_count) VALUES (?,?)
+           ON CONFLICT(user_id) DO UPDATE SET plan_count=excluded.plan_count""",
+        (user_id, plan_count),
+    )
+    return True
 
 
 class Criterion(BaseModel):

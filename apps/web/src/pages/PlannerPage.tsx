@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { EventApi, EventDropArg } from '@fullcalendar/core'
 import { blockType, Calendar } from '../components/Calendar'
-import { RatingForm } from '../components/RatingForm'
 import { ErrorBox, Icon, Issues, Modal, type T } from '../components/ui'
 import { API, type Client, type Draft, type Lang, type Option, type Plan, type Preview } from '../lib/api'
 import { currentMonday, weekLabel } from '../lib/dates'
@@ -56,8 +55,9 @@ function operationId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-export function PlannerPage({ client, draft, change, reload, toInput, lang, t }: {
-  client: Client; draft: Draft; change: ChangeDraft; reload: () => void; toInput: () => void; lang: Lang; t: T
+export function PlannerPage({ client, draft, change, reload, toInput, toRating, lang, t }: {
+  client: Client; draft: Draft; change: ChangeDraft; reload: () => void; toInput: () => void
+  toRating: (recordId: string) => void; lang: Lang; t: T
 }) {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -69,7 +69,7 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
   const [target, setTarget] = useState('')
   const [earlier, setEarlier] = useState(0)
   const [later, setLater] = useState(0)
-  const [ratingKey, setRatingKey] = useState<string | null>(null)
+  const [ratingInvite, setRatingInvite] = useState<string | null>(null)
   const [status, setStatus] = useState('')
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
@@ -163,15 +163,14 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
     }
   }
 
-  async function finalize(download: boolean) {
+  function savePlan() {
     if (!activePlan) return
-    await perform(async () => {
-      const path = `/plans/${activePlan.id}`
-      const data = { expected_version: activePlan.version }
-      const { schedule_key } = await client.send<{ schedule_key: string }>(path + '/finalize', data)
-      setPlan({ ...activePlan, schedule_key })
-      setRatingKey(schedule_key)
-      if (download) await client.download(path + '/download', data)
+    void perform(async () => {
+      const saved = await sendOperation<{ id: string; rating_prompt: boolean }>(
+        `/plans/${activePlan.id}/history`, { expected_version: activePlan.version },
+      )
+      setStatus(t('Đã lưu phiên bản vào lịch sử.', 'Version saved to history.'))
+      if (saved.rating_prompt) setRatingInvite(saved.id)
     })
   }
 
@@ -265,14 +264,10 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
             <ul className="simple-list">{activePlan.applied.map((value, index) => <li key={index}>
               {value.target_task_name} · {optionTitle(value.option_id, t)}{value.duration_min ? ` · ${value.duration_min}′` : ''}</li>)}</ul>
           </details>}
-          <button disabled={busy} onClick={() => void perform(async () => {
-            await sendOperation(`/plans/${activePlan.id}/history`, { expected_version: activePlan.version })
-            setStatus(t('Đã lưu phiên bản vào lịch sử.', 'Version saved to history.'))
-          })}>{t('Lưu vào lịch sử', 'Save to history')}</button>
-          <button className="primary" disabled={busy} onClick={() => activePlan.schedule_key ?
-            setRatingKey(activePlan.schedule_key) : void finalize(false)}>
-            {activePlan.schedule_key ? t('Mở đánh giá', 'Open rating') : t('Chốt và đánh giá', 'Finalize and rate')}</button>
-          <button disabled={busy} onClick={() => void finalize(true)}>{t('Tải lịch JSON', 'Download schedule JSON')}</button>
+          <button className="primary" disabled={busy} onClick={savePlan}>{t('Lưu vào lịch sử', 'Save to history')}</button>
+          <button disabled={busy} onClick={() => void perform(() => client.download(
+            `/plans/${activePlan.id}/download`, { expected_version: activePlan.version },
+          ))}>{t('Tải lịch JSON', 'Download schedule JSON')}</button>
         </section>}
       </aside>
     </div>
@@ -300,8 +295,12 @@ export function PlannerPage({ client, draft, change, reload, toInput, lang, t }:
           <dt>{t('Thời gian dự trù', 'Travel time')}</dt><dd>{eventTask.after_min}′</dd></>}
       </dl>
     </Modal>}
-    {ratingKey && <Modal title={t('Đánh giá lịch vừa chốt', 'Rate this schedule')} onClose={() => setRatingKey(null)} t={t}>
-      <RatingForm client={client} ratingKey={ratingKey} t={t} />
+    {ratingInvite && <Modal title={t('Đánh giá lịch vừa lưu', 'Rate your saved schedule')} onClose={() => setRatingInvite(null)} t={t}>
+      <p>{t('Lịch đã được lưu. Bạn có muốn đánh giá lịch này không?', 'Your schedule was saved. Would you like to rate it?')}</p>
+      <div className="inline end">
+        <button onClick={() => setRatingInvite(null)}>{t('Để sau', 'Later')}</button>
+        <button className="primary" onClick={() => toRating(ratingInvite)}>{t('Đánh giá lịch', 'Rate schedule')}</button>
+      </div>
     </Modal>}
   </>
 }

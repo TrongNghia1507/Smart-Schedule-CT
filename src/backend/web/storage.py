@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS web_operations(
     payload TEXT NOT NULL,
     PRIMARY KEY(user_id, operation_id)
 );
+CREATE TABLE IF NOT EXISTS web_rating_prompts(
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    plan_count INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS web_finalized(
     user_id INTEGER NOT NULL,
     schedule_key TEXT NOT NULL,

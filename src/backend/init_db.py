@@ -25,7 +25,7 @@ def _find_default_schema() -> Path:
 
 DEFAULT_SCHEMA = _find_default_schema()
 TABLES_DROP_ORDER = [
-    "web_finalized", "web_legacy_history_imports", "web_operations", "web_history",
+    "web_finalized", "web_rating_prompts", "web_legacy_history_imports", "web_operations", "web_history",
     "web_plans", "web_draft_undo", "web_drafts", "web_sessions",
     "ratings", "finalized_schedules", "login_events",
     "feedbacks", "schedule_histories", "conflict_options", "schedule_blocks",

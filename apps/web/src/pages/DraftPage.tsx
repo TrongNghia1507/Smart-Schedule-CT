@@ -6,8 +6,21 @@ import { dateInWeek } from '../lib/dates'
 export type Edit = { fixed: boolean; task?: Task; inline?: boolean; field?: string }
 type ImportPreview = { revision: number; valid: number; unknown: string[]; rows: { line: number; issues: Issue[] }[] }
 type Change = Record<string, unknown> & { action: string }
+type WeekSettings = { week_start: string; sleep_start: string; sleep_end: string }
 export type ChangeDraft = (command: Change) => Promise<Draft>
 const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+const clock = /^(?:[01]?\d|2[0-3]):[0-5]\d$/
+
+function normalizeClock(value: string) {
+  return value.trim().replace(/^(\d):/, '0$1:')
+}
+
+function sameSettings(first: WeekSettings, second: WeekSettings) {
+  return first.week_start === second.week_start &&
+    (['sleep_start', 'sleep_end'] as const).every(field =>
+      normalizeClock(first[field]) === normalizeClock(second[field]))
+}
+
 const taskColors = [
   '#b95175', '#d95177', '#d78078', '#dc4f30', '#e56536', '#df762f', '#e39733', '#ebbd49',
   '#d9c25c', '#bcc44c', '#81aa58', '#439363', '#50ad80', '#409c92', '#499ed0', '#6389df',
@@ -235,13 +248,17 @@ function TaskTable({ fixed, draft, edit, setEdit, change, reload, lang, t, remov
   const dateTimeLabel = (value: string) => value ? `${dateLabel(value)} · ${value.slice(11, 16)}` : '—'
   const minutesLabel = (value: string) => value ? `${value}′` : '—'
   const clockMinutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3))
+  const repeatLabel = (row: Task) => {
+    const days = row.repeat?.split(',').map(day => day.trim()).filter(Boolean) ?? []
+    if (weekdays.every(day => days.includes(day))) return t('Hằng ngày', 'Every day')
+    return days.map(day => localDays[weekdays.indexOf(day)] ?? day).join(', ') || '—'
+  }
   const fixedDuration = (row: Task) => {
     const minutes = clockMinutes(row.end) - clockMinutes(row.start)
     return minutesLabel(String(minutes < 0 ? minutes + 1440 : minutes))
   }
   const columns: Column[] = [{ key: 'name', label: t('Công việc', 'Task') }, ...(fixed ? [
-    { key: 'repeat', label: t('Lặp lại', 'Repeat'), display: (row: Task) =>
-      row.repeat.split(',').map(day => localDays[weekdays.indexOf(day)] ?? day).join(', ') || '—' },
+    { key: 'repeat', label: t('Lặp lại', 'Repeat'), display: repeatLabel },
     { key: 'start', label: t('Bắt đầu', 'Start') },
     { key: 'end', label: t('Kết thúc', 'End') },
     { key: '_duration', label: t('Thời lượng', 'Duration'), display: fixedDuration },
@@ -281,7 +298,7 @@ function TaskTable({ fixed, draft, edit, setEdit, change, reload, lang, t, remov
             const value = column.display?.(row) ?? column.choices?.find(([key]) => key === row[column.key])?.[1] ?? row[column.key] ?? '—'
             return <Cell scope={column.key === 'name' ? 'row' : undefined} className="table-value" key={column.key}>
               {editing ? <CellEditor column={column} row={row} fixed={fixed} change={change} close={() => setEdit(null)} reload={reload} t={t} /> :
-                column.key.startsWith('_') ? value : <button className="quiet cell-button" disabled={busy || Boolean(edit)}
+                column.key.startsWith('_') ? value : <button className={column.key === 'repeat' ? 'quiet cell-button cell-repeat' : 'quiet cell-button'} disabled={busy || Boolean(edit)}
                   aria-label={`${t('Sửa', 'Edit')} ${column.label} · ${row.name}${column.key === 'name' ? '' : ` · ${value}`}`}
                   onClick={() => setEdit({ fixed, task: row, field: column.key })}>
                   {fixed && column.key === 'name' && <span className="swatch" style={{ background: draft.colors[row.id] ?? '#187463' }} />}
@@ -341,8 +358,50 @@ export function DraftPage({ draft, client, change, adopt, reload, advance, lang,
   const [error, setError] = useState<unknown>(null)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [settingsEdit, setSettingsEdit] = useState<WeekSettings | null>(null)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsError, setSettingsError] = useState<unknown>(null)
   const { settings } = draft
   const issueCount = draft.issues.filter(issue => issue.severity === 'Error').length
+  const savedSettings = { week_start: settings.week_start, sleep_start: settings.sleep.start, sleep_end: settings.sleep.end }
+  const fields = settingsEdit ?? savedSettings
+  const start = normalizeClock(fields.sleep_start)
+  const end = normalizeClock(fields.sleep_end)
+  const settingsChanged = !sameSettings(fields, savedSettings)
+  const settingsIssue = !/^\d{4}-\d{2}-\d{2}$/.test(fields.week_start) || new Date(fields.week_start).getUTCDay() !== 1 ?
+    t('Hãy chọn ngày Thứ Hai.', 'Choose a Monday.') :
+    !clock.test(start) || !(clock.test(end) || end === '24:00') ?
+      t('Nhập giờ theo dạng HH:mm.', 'Enter the time as HH:mm.') :
+    start === end ?
+      t('Giờ bắt đầu và kết thúc làm việc phải khác nhau.', 'Working hours must have different start and end times.') : ''
+  const draftBusy = busy || savingSettings || settingsChanged
+
+  useEffect(() => {
+    if (!settingsEdit || !settingsChanged || settingsIssue || settingsError || savingSettings || busy || edit) return
+    const timer = window.setTimeout(async () => {
+      setSavingSettings(true)
+      try {
+        await change({ action: 'settings', ...settingsEdit })
+        setSettingsEdit(current => current && sameSettings(current, settingsEdit) ? null : current)
+      } catch (failure) {
+        setSettingsError(failure)
+      } finally {
+        setSavingSettings(false)
+      }
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [settingsEdit, settingsChanged, settingsIssue, settingsError, savingSettings, busy, edit, change])
+
+  function updateSettings(field: keyof WeekSettings, value: string) {
+    const next = { ...fields, [field]: value }
+    setSettingsError(null)
+    setSettingsEdit(!savingSettings && sameSettings(next, savedSettings) ? null : next)
+  }
+
+  function discardSettings() {
+    setSettingsEdit(null)
+    setSettingsError(null)
+  }
 
   async function run(command: Change) {
     setBusy(true)
@@ -372,7 +431,7 @@ export function DraftPage({ draft, client, change, adopt, reload, advance, lang,
     <div className="page-heading"><div><h1>{t('Nhập dữ liệu', 'Task input')}</h1>
       <p>{t('Chọn tuần, thêm công việc và kiểm tra dữ liệu trước khi xếp lịch.',
         'Choose a week, add tasks, and review your input before scheduling.')}</p></div>
-      <button className="primary" onClick={advance} disabled={busy || Boolean(edit) || issueCount > 0}>
+      <button className="primary" onClick={advance} disabled={draftBusy || Boolean(edit) || issueCount > 0}>
         <Icon name="calendar" />{t('Xem trước lịch', 'Preview calendar')}</button>
     </div>
     <div className="draft-stats">
@@ -390,24 +449,36 @@ export function DraftPage({ draft, client, change, adopt, reload, advance, lang,
     <section className="panel">
       <div className="section-head"><h2>{t('Thiết lập tuần', 'Week settings')}</h2>
         <div className="inline">
-          <button disabled={busy || Boolean(edit)} onClick={() => setConfirm({ action: 'sample' })}>{t('Nạp mẫu', 'Load sample')}</button>
-          <button disabled={busy || Boolean(edit) || !draft.can_undo} onClick={() => void run({ action: 'undo' })}>{t('Hoàn tác', 'Undo')}</button>
-          <button className="danger" disabled={busy || Boolean(edit) || !(draft.fixed_tasks.length || draft.deadline_tasks.length)}
+          <button disabled={draftBusy || Boolean(edit)} onClick={() => setConfirm({ action: 'sample' })}>{t('Nạp mẫu', 'Load sample')}</button>
+          <button disabled={draftBusy || Boolean(edit) || !draft.can_undo} onClick={() => void run({ action: 'undo' })}>{t('Hoàn tác', 'Undo')}</button>
+          <button className="danger" disabled={draftBusy || Boolean(edit) || !(draft.fixed_tasks.length || draft.deadline_tasks.length)}
             onClick={() => setConfirm({ action: 'clear' })}>{t('Xóa toàn bộ', 'Clear all')}</button>
         </div>
       </div>
-      <form className="settings-form" data-track key={draft.revision} onSubmit={event => {
-        event.preventDefault()
-        void run({ ...Object.fromEntries(new FormData(event.currentTarget)), action: 'settings' })
-      }}>
-        <label>{t('Tuần bắt đầu (Thứ Hai)', 'Week starting (Monday)')}<input name="week_start" type="date" defaultValue={settings.week_start} required /></label>
-        <label>{t('Bắt đầu ngủ', 'Sleep starts')}<input name="sleep_start" defaultValue={settings.sleep.start} placeholder="23:00" required /></label>
-        <label>{t('Kết thúc ngủ', 'Sleep ends')}<input name="sleep_end" defaultValue={settings.sleep.end} placeholder="05:00" required /></label>
-        <button disabled={busy || Boolean(edit)}>{t('Áp dụng', 'Apply')}</button>
+      <form className="settings-form" data-dirty={settingsChanged || savingSettings ? true : undefined} onSubmit={event => event.preventDefault()}>
+        <label>{t('Tuần bắt đầu (Thứ Hai)', 'Week starting (Monday)')}
+          <input name="week_start" type="date" value={fields.week_start} required disabled={busy || Boolean(edit)}
+            onChange={event => updateSettings('week_start', event.target.value)} /></label>
+        <label>{t('Bắt đầu làm việc', 'Work starts')}
+          <input name="sleep_end" value={fields.sleep_end} placeholder="05:00" required disabled={busy || Boolean(edit)}
+            onChange={event => updateSettings('sleep_end', event.target.value)} /></label>
+        <label>{t('Kết thúc làm việc', 'Work ends')}
+          <input name="sleep_start" value={fields.sleep_start} placeholder="23:00" required disabled={busy || Boolean(edit)}
+            onChange={event => updateSettings('sleep_start', event.target.value)} /></label>
       </form>
+      {(savingSettings || (settingsChanged && !settingsIssue && !settingsError)) &&
+        <p className="muted" role="status">{t('Đang lưu thiết lập…', 'Saving settings…')}</p>}
+      {settingsChanged && (settingsIssue || Boolean(settingsError)) && <div className="form-stack">
+        {settingsIssue && <p className="settings-error" role="status">{settingsIssue}</p>}
+        <ErrorBox error={settingsError} t={t} reload={() => { discardSettings(); reload() }} />
+        <div className="inline">
+          {!settingsIssue && Boolean(settingsError) && <button type="button" onClick={() => setSettingsError(null)}>{t('Thử lại', 'Retry')}</button>}
+          <button type="button" disabled={savingSettings} onClick={discardSettings}>{t('Hủy thay đổi', 'Discard changes')}</button>
+        </div>
+      </div>}
     </section>
     {([true, false] as const).map(fixed => <TaskTable key={String(fixed)} fixed={fixed} draft={draft} edit={edit}
-      setEdit={setEdit} change={change} reload={reload} lang={lang} t={t} busy={busy}
+      setEdit={setEdit} change={change} reload={reload} lang={lang} t={t} busy={draftBusy}
       remove={task_id => setConfirm({ action: 'delete', task_id })} />)}
     <section className="panel">
       <div className="section-head">
@@ -419,15 +490,15 @@ export function DraftPage({ draft, client, change, adopt, reload, advance, lang,
         <CsvGuide week={settings.week_start} t={t} />
         <div className="inline">
           <input className="file-input" type="file" aria-label={t('Chọn tệp CSV', 'Choose CSV file')} accept=".csv,text/csv"
-            disabled={busy} key={file?.name ?? 'empty'} onChange={event => { setPreview(null); setFile(event.target.files?.[0] ?? null) }} />
-          <button disabled={!file || busy || Boolean(edit)} onClick={() => void csv(false)}>{t('Kiểm tra CSV', 'Preview CSV')}</button>
+            disabled={draftBusy} key={file?.name ?? 'empty'} onChange={event => { setPreview(null); setFile(event.target.files?.[0] ?? null) }} />
+          <button disabled={!file || draftBusy || Boolean(edit)} onClick={() => void csv(false)}>{t('Kiểm tra CSV', 'Preview CSV')}</button>
         </div>
         {preview && <div className="notice">
           {preview.unknown.length > 0 && <p>{t('Bỏ qua cột', 'Ignored columns')} · {preview.unknown.join(', ')}</p>}
           {preview.rows.filter(row => row.issues.length).map(row => <div key={row.line}>
             <strong>{t('Dòng', 'Row')} {row.line}</strong><Issues issues={row.issues} t={t} />
           </div>)}
-          <button className="primary" disabled={busy || !preview.valid || preview.revision !== draft.revision}
+          <button className="primary" disabled={draftBusy || !preview.valid || preview.revision !== draft.revision}
             onClick={() => void csv(true)}>{t('Nhập số dòng hợp lệ', 'Import valid rows')} ({preview.valid})</button>
           {preview.revision !== draft.revision && <p>{t('Bản nháp đã đổi. Hãy kiểm tra lại tệp.', 'The draft has changed. Preview the file again.')}</p>}
         </div>}

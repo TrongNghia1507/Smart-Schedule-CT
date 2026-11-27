@@ -118,6 +118,11 @@ def test_conflict_and_rating_survive_restart():
         save_request = {"expected_version": 1, "operation_id": str(uuid4())}
         saved = client.post(path + "/history", headers=headers, json=save_request)
         assert saved.status_code == 201, saved.text
+        assert saved.json()["rating_prompt"] is False
+        key = saved.json()["schedule_key"]
+        pending_rating = client.get(f"{API}/ratings/{key}")
+        assert pending_rating.status_code == 200, pending_rating.text
+        assert pending_rating.json()["rating"] is None
         assert client.post(path + "/history", headers=headers, json=save_request).json() == saved.json()
         history = client.get(API + "/history").json()
         assert len(history) == 1
@@ -125,7 +130,7 @@ def test_conflict_and_rating_survive_restart():
         assert detail.status_code == 200, detail.text
         assert detail.json()["entries"] == []
         payload = {"expected_version": 1}
-        key = client.post(path + "/finalize", headers=headers, json=payload).json()["schedule_key"]
+        assert client.post(path + "/finalize", headers=headers, json=payload).json()["schedule_key"] == key
         final_download = client.post(path + "/download", headers=headers, json=payload)
         assert final_download.json()["schedule_key"] == key
         with connect(db_path()) as conn:
@@ -142,9 +147,10 @@ def test_conflict_and_rating_survive_restart():
         updated = client.put(ratings_path, headers=headers, json={**rating, "overall": 5})
         assert updated.json()["rating"]["overall"] == 5
         with TestClient(app) as someone_else:
-            register(someone_else, "different")
+            other_headers = register(someone_else, "different")
             assert someone_else.get(path).status_code == 404
             assert someone_else.get(ratings_path).status_code == 404
+            assert someone_else.post(f"{API}/history/{saved.json()['id']}/rating", headers=other_headers).status_code == 404
             assert someone_else.get(API + "/history").json() == []
 
     with TestClient(app) as admin:
@@ -159,6 +165,59 @@ def test_conflict_and_rating_survive_restart():
                                        params=[("score", 4), ("score", 5), ("group", "other"),
                                                ("group", auth.USER_GROUPS[0])]).content
         assert admin.get(API + "/admin/ratings.csv", params={"empty": True}).content == b"\xef\xbb\xbf"
+
+
+def test_rating_prompt_counts_new_plans_per_account():
+    def add_task(client, headers):
+        draft = client.get(API + "/draft").json()
+        week = draft["settings"]["week_start"]
+        response = change(client, headers, draft["revision"], action="task", fixed=False, fields={
+            "name": "Planning task", "deadline": f"{week}T17:00", "remaining_min": 60,
+            "chunk_min": 60, "chunk_max": 60, "buffer_min": 0,
+        })
+        assert response.status_code == 200, response.text
+        return response.json()["revision"]
+
+    def make_plan(client, headers, revision):
+        body = {"expected_revision": revision, "operation_id": str(uuid4())}
+        response = client.post(API + "/plans", headers=headers, json=body)
+        assert response.status_code == 201, response.text
+        replay = client.post(API + "/plans", headers=headers, json=body)
+        assert replay.json()["id"] == response.json()["id"]
+        return response.json()
+
+    def save(client, headers, plan):
+        response = client.post(f"{API}/plans/{plan['id']}/history", headers=headers, json={
+            "expected_version": plan["version"], "operation_id": str(uuid4()),
+        })
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    with TestClient(app) as client:
+        headers = register(client, "rating_cadence")
+        revision = add_task(client, headers)
+        first = make_plan(client, headers, revision)
+        first_saved = save(client, headers, first)
+        assert first_saved["rating_prompt"] is False
+        assert save(client, headers, first)["rating_prompt"] is False
+        manual = client.post(f"{API}/history/{first_saved['id']}/rating", headers=headers)
+        assert manual.json()["schedule_key"] == first_saved["schedule_key"]
+        make_plan(client, headers, revision)  # Generating a plan counts even without saving that plan.
+        third = make_plan(client, headers, revision)
+        assert save(client, headers, third)["rating_prompt"] is True
+        cookies = dict(client.cookies)
+
+    with TestClient(app, cookies=cookies) as client, TestClient(app) as other:
+        assert save(client, headers, third)["rating_prompt"] is False
+        for _ in range(2):
+            assert save(client, headers, make_plan(client, headers, revision))["rating_prompt"] is False
+        other_headers = register(other, "other_cadence")
+        other_revision = add_task(other, other_headers)
+        assert save(other, other_headers, make_plan(other, other_headers, other_revision))["rating_prompt"] is False
+        sixth = make_plan(client, headers, revision)
+        with TestClient(app, cookies=cookies) as second_tab, ThreadPoolExecutor(max_workers=2) as pool:
+            saves = [pool.submit(save, tab, headers, sixth) for tab in (client, second_tab)]
+            assert sorted(future.result()["rating_prompt"] for future in saves) == [False, True]
 
 
 def test_react_csv_template_and_recurring_calendar_colors():
@@ -257,9 +316,13 @@ def test_legacy_draft_and_color_import(tmp_path):
     assert retried["drafts_imported"] == retried["history_imported"] == 0
     assert draft_path.read_bytes() == original
     with TestClient(app) as client:
-        assert client.post(API + "/auth/login", json={"username": "olduser", "password": PASSWORD}).status_code == 200
+        login = client.post(API + "/auth/login", json={"username": "olduser", "password": PASSWORD})
+        assert login.status_code == 200
         draft = client.get(API + "/draft").json()
         assert draft["settings"]["week_start"] == monday
         assert draft["deadline_tasks"][0]["importance"] == "3"
         assert draft["colors"] == {"ft_old": "#187463"}
         assert client.get(API + "/history/old-schedule").json()["record"]["version"] == 2
+        manual = client.post(API + "/history/old-schedule/rating", headers={"X-CSRF-Token": login.json()["csrf"]})
+        assert manual.status_code == 200, manual.text
+        assert client.get(f"{API}/ratings/{manual.json()['schedule_key']}").status_code == 200

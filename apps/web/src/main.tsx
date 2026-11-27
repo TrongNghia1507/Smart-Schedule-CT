@@ -8,10 +8,11 @@ import { DraftPage, type ChangeDraft } from './pages/DraftPage'
 import './styles.css'
 
 type Theme = 'light' | 'dark'
-type Page = 'input' | 'calendar' | 'history' | 'admin'
+type Page = 'input' | 'calendar' | 'history' | 'rating' | 'admin'
 const base = '/app/'
 const PlannerPage = lazy(() => import('./pages/PlannerPage').then(module => ({ default: module.PlannerPage })))
 const HistoryPage = lazy(() => import('./pages/HistoryPage').then(module => ({ default: module.HistoryPage })))
+const RatingPage = lazy(() => import('./pages/RatingPage').then(module => ({ default: module.RatingPage })))
 const AdminPage = lazy(() => import('./pages/AdminPage').then(module => ({ default: module.AdminPage })))
 
 function initialPreference<T extends string>(key: string, values: T[], fallback: T): T {
@@ -22,7 +23,7 @@ function initialPreference<T extends string>(key: string, values: T[], fallback:
 
 function initialPage(): Page {
   const section = location.pathname.slice(base.length).split('/')[0]
-  return section === 'calendar' || section === 'history' || section === 'admin' ? section : 'input'
+  return section === 'calendar' || section === 'history' || section === 'rating' || section === 'admin' ? section : 'input'
 }
 
 function App() {
@@ -93,9 +94,9 @@ function App() {
     }
   }, [page, lang])
 
-  function navigate(next: Page, check = true) {
+  function navigate(next: Page, check = true, ratingRecordId?: string) {
     if (next === page || (check && !confirmDiscard(document, t))) return
-    history.pushState(null, '', base + (next === 'input' ? '' : next) + location.search)
+    history.pushState(ratingRecordId ? { ratingRecordId } : null, '', base + (next === 'input' ? '' : next) + location.search)
     setPage(next)
     window.scrollTo(0, 0)
   }
@@ -151,6 +152,7 @@ function App() {
     { id: 'input', label: t('Nhập dữ liệu', 'Input'), icon: 'list' },
     { id: 'calendar', label: t('Lịch tuần', 'Calendar'), icon: 'calendar' },
     { id: 'history', label: t('Lịch sử', 'History'), icon: 'history' },
+    { id: 'rating', label: t('Đánh giá', 'Rate schedule'), icon: 'star' },
   ] as const
   const initials = session?.user.full_name.trim().split(/\s+/).slice(-2).map(word => [...word][0]).join('').toUpperCase()
   const brand = <a href={base} className="brand" onClick={event => {
@@ -222,9 +224,11 @@ function App() {
         {adminRoute && session?.user.role === 'admin' && <AdminPage client={client} lang={lang} t={t}
           onChanged={() => { endSession(); setAuthNotice(true) }} />}
         {planner && draft && page === 'calendar' && <PlannerPage draft={draft} client={client} change={change}
-          reload={reload} toInput={() => navigate('input')} lang={lang} t={t} />}
+          reload={reload} toInput={() => navigate('input')} toRating={id => navigate('rating', true, id)} lang={lang} t={t} />}
         {planner && draft && page === 'history' && <HistoryPage draft={draft} client={client}
           onRestore={value => { setDraft(value); navigate('input', false) }} reload={reload} lang={lang} t={t} />}
+        {planner && page === 'rating' && <RatingPage client={client} initialRecordId={history.state?.ratingRecordId}
+          lang={lang} t={t} />}
       </Suspense>
       {adminRoute && session?.user.role === 'user' && <section className="panel narrow">
         <h1>{t('Khu vực quản trị', 'Administrator area')}</h1>

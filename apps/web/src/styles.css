@@ -127,7 +127,8 @@ details > :not(summary) { margin-top: .55rem; }
 .draft-stats strong { font-size: 1.18rem; line-height: 1.2; letter-spacing: -.02em; }
 .draft-stats > div > div > span { color: var(--muted); font-size: .86rem; line-height: 1.35; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .85rem; }
-.settings-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; align-items: end; gap: .85rem; }
+.settings-form { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); align-items: end; gap: .85rem; }
+.settings-error { color: var(--danger); }
 .file-input { max-width: 28rem; }
 .task-editor { padding: .85rem; background: var(--soft); border-radius: .55rem; }
 .deadline-toggle { padding: .65rem .75rem; background: var(--tint); border-radius: .6rem; }
@@ -149,6 +150,7 @@ dialog .task-editor { background: var(--surface); padding: 0; }
 .editable-table th, .editable-table td { padding: .45rem .55rem; }
 .editable-table th[scope="row"] { min-width: 11.5rem; }
 .cell-button { text-align: start; font-weight: inherit; color: inherit; min-width: 2rem; }
+.cell-repeat { white-space: nowrap; }
 .cell-editor { display: grid; gap: .32rem; min-width: max(10rem, 18ch); white-space: normal; }
 .cell-editor .notice { font-weight: 400; }
 .color-options { margin-bottom: .65rem; gap: .4rem; }
@@ -185,7 +187,9 @@ tbody tr:hover { background: var(--soft); }
 .day-picker span { font-size: .72rem; }
 .calendar-scroll > .fc { min-width: 640px; font-size: .84rem; }
 .calendar-scroll.calendar-day > .fc { min-width: 0; }
-.fc .fc-col-header-cell-cushion { color: var(--ink); text-decoration: none; padding: .55rem .2rem; }
+.fc .fc-col-header-cell-cushion { display: block; color: var(--ink); text-decoration: none; padding: .45rem .15rem; }
+.calendar-day-heading { display: grid; justify-items: center; gap: .15rem; line-height: 1.15; white-space: nowrap; }
+.calendar-day-heading > span[aria-hidden] { color: var(--muted); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 .fc .fc-timegrid-slot-label { color: var(--muted); }
 .fc .fc-bg-event.sleep-band { background: repeating-linear-gradient(135deg, var(--line) 0 4px, var(--soft) 4px 8px) !important; opacity: .71; }
 .fc .fc-timegrid-event { border-radius: .38rem; box-shadow: none; overflow: hidden; }
@@ -280,7 +284,7 @@ progress { width: 100%; accent-color: var(--accent); }
   .admin-criteria { grid-template-columns: minmax(0, 1fr); }
   .planning-shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: static; height: auto; padding: .72rem .9rem; border-right: 0; gap: .7rem; }
-  .sidebar nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; max-width: 32rem; }
+  .sidebar nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .3rem; max-width: 36rem; }
   .sidebar nav a { justify-content: center; gap: .35rem; min-height: 2.45rem; padding: .5rem .35rem; font-size: .9rem; }
   .sidebar-week, .topbar-label { display: none; }
   .planning-shell .topbar-inner { padding-block: .55rem; }
@@ -290,6 +294,7 @@ progress { width: 100%; accent-color: var(--accent); }
   .planner-aside { grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); align-items: start; }
 }
 @media (max-width: 600px) {
+  .sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .auth-layout, .settings-form { grid-template-columns: minmax(0, 1fr); }
   .auth-hero { min-height: initial; }
   .auth-calendar { display: none; }

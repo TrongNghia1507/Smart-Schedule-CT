@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { ApiError, type Issue, type Lang } from '../lib/api'
 
 export type T = (vi: string, en: string) => string
@@ -34,6 +34,7 @@ export function Modal({ title, onClose, children, busy = false, wide, t }: {
   title: string; onClose: () => void; children: ReactNode; busy?: boolean; wide?: boolean; t: T
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
   useEffect(() => {
     const dialog = ref.current
     dialog?.showModal()
@@ -42,8 +43,8 @@ export function Modal({ title, onClose, children, busy = false, wide, t }: {
   function close() {
     if (!busy && ref.current && confirmDiscard(ref.current, t)) onClose()
   }
-  return <dialog ref={ref} className={wide ? 'wide-dialog' : undefined} onCancel={event => { event.preventDefault(); close() }}>
-    <div className="section-head"><h2>{title}</h2>
+  return <dialog ref={ref} aria-labelledby={titleId} className={wide ? 'wide-dialog' : undefined} onCancel={event => { event.preventDefault(); close() }}>
+    <div className="section-head"><h2 id={titleId}>{title}</h2>
       <button className="icon-button" onClick={close} disabled={busy} aria-label={t('Đóng', 'Close')}>×</button>
     </div>
     {children}
@@ -55,6 +56,7 @@ const iconPaths = {
   list: <><rect x="5" y="4" width="14" height="16" rx="2" /><path d="M9 9h6M9 13h6M9 17h4" /></>,
   calendar: <><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7.5 3.5v4M16.5 3.5v4M3.5 10h17M8 14h2M14 14h2M8 17h2" /></>,
   history: <><path d="M3.5 11a8.5 8.5 0 1 1 2.2 7M3.5 6v5h5M12 7.5v5l3 1.5" /></>,
+  star: <path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3L12 17.5l-5.6 2.9 1.1-6.3-4.6-4.5 6.3-.9L12 3Z" />,
   moon: <path d="M20 15.25A8.5 8.5 0 0 1 8.75 4 8.5 8.5 0 1 0 20 15.25Z" />,
   sun: <><circle cx="12" cy="12" r="3.5" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4m10.6 10.6 1.4 1.4m0-13.4-1.4 1.4M6.7 17.3l-1.4 1.4" /></>,
   files: <><path d="M9 3h6l4 4v13a1 1 0 0 1-1 1H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M15 3v5h4M10 12h6M10 16h6" /></>,
