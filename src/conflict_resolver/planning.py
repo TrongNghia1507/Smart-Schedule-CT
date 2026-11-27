@@ -16,8 +16,8 @@ from .models import (
 from .scheduler import CoreScheduler
 from .resolver import resolve
 
-BASELINE_TIME_LIMIT = 10.0
-ANALYZE_TIME_LIMIT = 5.0
+BASELINE_TIME_LIMIT = 15.0
+ANALYZE_TIME_LIMIT = 8.0
 
 engine = CoreScheduler(
     require_all=False,
@@ -144,11 +144,15 @@ class PlanningSession:
     def plan(self):
         if self.cached_plan is None:
             engine = CoreScheduler(require_all=False, time_limit=BASELINE_TIME_LIMIT)
+            hint = self.hint_chunks
+            if not hint and not self.protected_ids:
+                greedy = ReferenceScheduler().plan(self.context)
+                hint = [c for c in greedy.chunks if c.task_id not in greedy.unscheduled]
 
             result = engine.plan(
                 self.context,
                 required_ids=self.protected_ids,
-                hint=self.hint_chunks,
+                hint=hint,
             )
 
             if result.status == "UNKNOWN":

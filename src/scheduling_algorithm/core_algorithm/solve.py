@@ -479,8 +479,7 @@ def solve(
         finish,
     )
 
-    build_objective(model, context)
-
+ 
     if duration_var is not None:
         # Option 2: giữ thời lượng mới lớn nhất có thể.
         model.Maximize(duration_var)
@@ -498,6 +497,9 @@ def solve(
                 for chunk in task_chunks
             )
         )
+    else:
+        build_objective(model, context)
+        
 
     if hint:  # MỚI
         add_hint(model, tasks, present, chunks, hint, cfg)

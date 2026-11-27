@@ -537,24 +537,54 @@ class CoreScheduler:
         )
 
     def plan_relaxed(self, context, blocks, *, step=15):
-        """Một lần giải: nới ít nhất để xếp đủ mọi task.
-
-        Trả về (PlanResult, {block_index: (cắt_trái, cắt_phải)},
-        {khóa nhóm fixed bị xóa}).
-        """
+        from scheduling_algorithm.core_algorithm.models import ElasticBlock
         from scheduling_algorithm.core_algorithm.solve import solve
+
+        slot = self._slot_minutes(context)
+        if slot > 1 and (
+            step % slot != 0
+            or any(b.start % slot != 0 or b.end % slot != 0 for b in blocks)
+        ):
+            slot = 1
+
+        scaled = (
+            [
+                ElasticBlock(
+                    b.start // slot,
+                    b.end // slot,
+                    b.left_max // slot,
+                    b.right_max // slot,
+                    price=b.price * slot,
+                    left_price=b.left_price * slot if b.left_price is not None else None,
+                    right_price=b.right_price * slot if b.right_price is not None else None,
+                    touch=b.touch,
+                    group=b.group,
+                    removable=b.removable,
+                    remove_price=b.remove_price * slot,
+                )
+                for b in blocks
+            ]
+            if slot > 1
+            else blocks
+        )
 
         result = solve(
             self._core_tasks(context),
             [],
-            self._config(),
+            self._config(slot),
             require_all=True,
-            elastic=blocks,
-            step=step,
+            elastic=scaled,
+            step=step // slot,
+        )
+
+        elastic_minutes = (
+            {idx: (left * slot, right * slot) for idx, (left, right) in result.elastic.items()}
+            if slot > 1
+            else result.elastic
         )
 
         return (
-            self._plan_result(context, result),
-            result.elastic,
+            self._plan_result(context, result, slot),
+            elastic_minutes,
             result.removed,
         )

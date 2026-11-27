@@ -1,3 +1,11 @@
+---
+title: Smart Schedule CT
+emoji: 📅
+colorFrom: teal
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
 # Smart Schedule CT
 
 Ứng dụng lập lịch tuần. Người dùng nhập công việc và sự kiện cố định, xem lịch đề xuất và chọn cách xử lý khi một công việc chưa xếp được.
