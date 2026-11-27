@@ -15,7 +15,7 @@ from .models import (
 )
 from .scheduler import CoreScheduler
 from .resolver import resolve
-
+from .scheduler import CoreScheduler, ReferenceScheduler
 BASELINE_TIME_LIMIT = 15.0
 ANALYZE_TIME_LIMIT = 8.0
 
